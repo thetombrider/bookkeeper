@@ -26,25 +26,50 @@ def save_transaction(cls, transaction):
         print(f"Transaction for '{transaction.description}' on {transaction.date} already exists. Cannot add duplicate.")
         return  # Exit the function if the transaction already exists
 
-    with open('transactions.txt', 'a') as f:
+    with open(TRANSACTION_FILE, 'a') as f:
         f.write(f"{transaction.transaction_id},{transaction.date},{transaction.month},{transaction.description},{transaction.amount},{transaction.category.category_name},{transaction.account_name},{transaction.account_id},{transaction.transaction_type}\n")
 
 def read_transactions():
     if not os.path.exists(TRANSACTION_FILE):
+        print("Transaction file does not exist.")
         return []
+    
     with open(TRANSACTION_FILE, "r") as f:
         transactions = []
         for line in f.readlines():
-            transaction_id, date, month, description, amount, category_name, account_name = line.strip().split(',')
-            transactions.append(Transaction(
-                transaction_id=int(transaction_id),
-                date=date,
-                month=month,
-                description=description,
-                amount=float(amount),
-                category=Category(category_id=int(account_id), category_name=category_name),
-                account_name=account_name
-            ))
+            line = line.strip()  # Strip leading/trailing whitespace
+            print(f"Processing line: '{line}'")  # Debugging output
+            
+            if not line or line.startswith('#'):  # Skip empty lines and comments
+                print("Skipping empty line or comment.")
+                continue
+            
+            # Split the line and strip whitespace from each value
+            values = [value.strip() for value in line.split(',')]
+            print(f"Split values: {values}")  # Debugging output
+            print(f"Number of values: {len(values)}")  # Debugging output
+            
+            if len(values) != 9:  # Ensure there are exactly 9 values
+                print(f"Skipping improperly formatted line: {line} (found {len(values)} values)")
+                continue
+            
+            try:
+                transaction_id, date, month, description, amount, category_name, account_name, account_id, transaction_type = values
+                transactions.append(Transaction(
+                    transaction_id=int(transaction_id),
+                    date=date,
+                    month=month,
+                    description=description,
+                    amount=float(amount),
+                    category=Category(category_name=category_name),  # Assuming you have a way to get the Category instance
+                    account_name=account_name,
+                    account_id=int(account_id),  # Convert account_id to int
+                    transaction_type=transaction_type  # Use transaction_type
+                ))
+            except ValueError as e:
+                print(f"Skipping line due to error: {e} - {line}")
+        
+        print(f"Total transactions read: {len(transactions)}")  # Debugging output
         return transactions
 
 class TransactionManager:
@@ -113,6 +138,9 @@ class TransactionManager:
         cls.increment_transaction_counter()  # Increment the counter for the next transaction
         cls.save_transaction(transaction)  # Save the new transaction to the file
         cls.load_transactions()  # Reload transactions to reflect the new state
+
+        # After creating the transaction, print its details
+        print(f"Adding transaction: {transaction.transaction_id}, {transaction.date}, {transaction.month}, {transaction.description}, {transaction.amount}, {transaction.category.category_name}, {transaction.account_name}, {transaction.account_id}, {transaction.transaction_type}")
 
     @classmethod
     def save_transaction(cls, transaction):

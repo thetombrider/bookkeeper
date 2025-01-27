@@ -2,9 +2,10 @@
 import click
 from datetime import datetime
 from models import Transaction, Account, Category
-from transaction_manager import TransactionManager, save_transaction, read_transactions
+from transaction_manager import TransactionManager, save_transaction, read_transactions, TRANSACTION_FILE
 from account_manager import AccountManager
 from category_manager import CategoryManager
+
 
 VALID_ACCOUNT_TYPES = ['Asset', 'Liability', 'Equity', 'Revenue', 'Expense']
 
@@ -80,12 +81,40 @@ def add_transaction(date, description, amount, category, account_name, transacti
 @click.command()
 def view_transactions():
     """View all transactions."""
-    transactions = read_transactions()
+    TransactionManager.load_transactions()
+    transactions = read_transactions()  # Ensure this is the correct call
     if not transactions:
         click.echo("No transactions found.")
         return
     for transaction in transactions:
         click.echo(transaction)
+
+def read_transactions():
+    """Read transactions from the transactions.txt file."""
+    transactions = []
+    try:
+        with open(TRANSACTION_FILE, 'r') as f:
+            for line in f:
+                line = line.strip()
+                if not line:  # Skip empty lines
+                    continue
+                try:
+                    transaction_id, date, month, description, amount, category_name, account_name = line.split(',')
+                    # Create a Transaction instance or a dictionary to store the transaction
+                    transactions.append({
+                        'transaction_id': transaction_id,
+                        'date': date,
+                        'month': month,
+                        'description': description,
+                        'amount': float(amount),
+                        'category_name': category_name,
+                        'account_name': account_name
+                    })
+                except ValueError:
+                    print(f"Skipping improperly formatted line: {line}")
+    except FileNotFoundError:
+        print("Transaction file not found.")
+    return transactions
 
 @click.command()
 @click.option('--account_type', prompt='Account Type', type=click.Choice(['Asset', 'Liability', 'Equity', 'Revenue', 'Expense']), help='The type of the account (e.g., Asset, Liability).')
