@@ -1,6 +1,5 @@
 from pydantic import BaseModel, Field, field_validator
-from account_manager import AccountManager
-
+from category_manager import CategoryManager
 # Define the Account data model
 class Account(BaseModel):
     account_id: int = Field(default=None)  # Allow default None for instantiation
@@ -8,11 +7,43 @@ class Account(BaseModel):
     account_balance: float
     account_name: str
 
-    @field_validator('account_id')
+    # Class variable to indicate loading state
+    _loading = False
+
+    @field_validator('account_id', mode='before')
     def check_account_exists(cls, account_id):
+        if cls._loading:
+            return account_id  # Skip validation if loading
+        from account_manager import AccountManager
+        # Allow account_id to be set without validation when loading from file
         if account_id is not None and account_id not in AccountManager.get_all_account_ids():
             raise ValueError(f"Account ID {account_id} does not exist.")
         return account_id
+
+# Define the Category data model
+class Category(BaseModel):
+    category_id: int = Field(default=None)  # Allow default None for instantiation
+    category_name: str
+
+    # Class variable to indicate loading state
+    _loading = False
+
+    @field_validator('category_id', mode='before')
+    def check_category_exists(cls, category_id):
+        if cls._loading:
+            return category_id  # Skip validation if loading
+        if category_id is not None and category_id not in CategoryManager.get_all_category_ids():
+            raise ValueError(f"Category ID {category_id} does not exist.")
+        return category_id
+
+    def to_row(self):
+        """Convert the category to a row format for saving to a file."""
+        return f"{self.category_id},{self.category_name}\n"
+
+    @classmethod
+    def get_all_categories(cls):
+        # This method can be used to retrieve all categories from a data source
+        pass
 
 # Define the Transaction data model
 class Transaction(BaseModel):
@@ -21,7 +52,7 @@ class Transaction(BaseModel):
     month: str
     description: str
     amount: float
-    category: str
+    category: Category  # Reference to the Category model
     account_id: int
     account_name: str
     transaction_type: str  # Add transaction type (credit or debit)
@@ -29,6 +60,13 @@ class Transaction(BaseModel):
     @field_validator('account_id')
     def check_account_exists(cls, account_id, values):
         # Check if the account_id exists in the accounts list
+        from account_manager import AccountManager
         if account_id not in AccountManager.get_all_account_ids():
             raise ValueError(f"Account ID {account_id} does not exist.")
         return account_id
+
+    @field_validator('transaction_type')
+    def validate_transaction_type(cls, transaction_type):
+        if transaction_type not in ['credit', 'debit']:
+            raise ValueError("Transaction type must be either 'credit' or 'debit'.")
+        return transaction_type
