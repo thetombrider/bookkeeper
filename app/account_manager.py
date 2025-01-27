@@ -1,8 +1,7 @@
 import os
 import click
-
-ACCOUNT_FILE = "accounts.txt"
-VALID_ACCOUNT_TYPES = ['Asset', 'Liability', 'Equity', 'Revenue', 'Expense']
+from models import Account
+from config import ACCOUNT_FILE  # Import the account file path
 
 class AccountManager:
     accounts = []
@@ -23,8 +22,6 @@ class AccountManager:
     @classmethod
     def load_accounts(cls):
         """Load accounts from the accounts.txt file."""
-        from models import Account  # Move import here
-        Account._loading = True  # Set loading state
         cls.accounts.clear()  # Clear existing accounts
         if os.path.exists(ACCOUNT_FILE):
             with open(ACCOUNT_FILE, 'r') as f:
@@ -35,14 +32,13 @@ class AccountManager:
                         if len(values) == 4:  # Ensure there are exactly 4 values
                             account_id, account_name, account_balance, account_type = values
                             account = Account(
-                                account_id=int(account_id),  # Set account_id
+                                account_id=int(account_id),
                                 account_name=account_name,
                                 account_balance=float(account_balance),
                                 account_type=account_type
                             )
                             cls.accounts.append(account)
                             cls.account_counter = max(cls.account_counter, account.account_id + 1)  # Update counter
-        Account._loading = False  # Reset loading state
 
     @classmethod
     def add_account(cls, account):

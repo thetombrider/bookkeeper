@@ -1,6 +1,6 @@
 import os
 
-CATEGORY_FILE = "categories.txt"
+from config import CATEGORIES_FILE
 
 class CategoryManager:
     categories = []
@@ -12,8 +12,8 @@ class CategoryManager:
         from models import Category
         Category._loading = True  # Set loading state
         cls.categories.clear()  # Clear existing categories
-        if os.path.exists(CATEGORY_FILE):
-            with open(CATEGORY_FILE, 'r') as f:
+        if os.path.exists(CATEGORIES_FILE):
+            with open(CATEGORIES_FILE, 'r') as f:
                 for line in f:
                     line = line.strip()
                     if line:  # Check if the line is not empty
@@ -41,7 +41,7 @@ class CategoryManager:
     @classmethod
     def save_category(cls, category):
         """Save the category to the categories.txt file."""
-        with open(CATEGORY_FILE, 'a') as f:
+        with open(CATEGORIES_FILE, 'a') as f:
             f.write(f"{category.category_id},{category.category_name}\n")
 
     @classmethod

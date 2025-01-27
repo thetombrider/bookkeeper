@@ -2,12 +2,11 @@ import os
 from models import Transaction, Category
 from account_manager import AccountManager
 from category_manager import CategoryManager
-
-TRANSACTION_FILE = "transactions.txt"
+from config import TRANSACTION_FILE  # Import the transaction file path
 
 def transaction_exists(transaction):
     try:
-        with open('transactions.txt', 'r') as f:
+        with open(TRANSACTION_FILE, 'r') as f:
             for line in f:
                 existing_transaction = line.strip().split(',')
                 if (existing_transaction[1] == transaction.date and  # date

@@ -5,9 +5,7 @@ from models import Transaction, Account, Category
 from transaction_manager import TransactionManager, save_transaction, read_transactions, TRANSACTION_FILE
 from account_manager import AccountManager
 from category_manager import CategoryManager
-
-
-VALID_ACCOUNT_TYPES = ['Asset', 'Liability', 'Equity', 'Revenue', 'Expense']
+from config import TRANSACTION_FILE, VALID_ACCOUNT_TYPES  # Import the transaction file path
 
 @click.command()
 @click.option('--date', prompt='Transaction date (YYYY-MM-DD)', help='The date of the transaction.')
