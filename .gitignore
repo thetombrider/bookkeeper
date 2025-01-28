@@ -11,4 +11,5 @@ __pycache__/
 # Ignore other files or folders as needed
 accounts.txt
 transactions.txt
+categories.txt
 .DS_Store
