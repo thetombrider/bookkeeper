@@ -1,7 +1,10 @@
 import os
 import click
 from models import Account
-from config import ACCOUNT_FILE  # Import the account file path
+from config import ACCOUNT_FILE
+from utils.csv_handler import read_csv, write_csv, write_csv_all, initialize_csv_file
+
+ACCOUNT_FIELDS = ['account_id', 'account_name', 'account_balance', 'account_type']
 
 class AccountManager:
     accounts = []
@@ -21,24 +24,27 @@ class AccountManager:
 
     @classmethod
     def load_accounts(cls):
-        """Load accounts from the accounts.txt file."""
-        cls.accounts.clear()  # Clear existing accounts
-        if os.path.exists(ACCOUNT_FILE):
-            with open(ACCOUNT_FILE, 'r') as f:
-                for line in f:
-                    line = line.strip()
-                    if line:  # Check if the line is not empty
-                        values = line.split(',')
-                        if len(values) == 4:  # Ensure there are exactly 4 values
-                            account_id, account_name, account_balance, account_type = values
-                            account = Account(
-                                account_id=int(account_id),
-                                account_name=account_name,
-                                account_balance=float(account_balance),
-                                account_type=account_type
-                            )
-                            cls.accounts.append(account)
-                            cls.account_counter = max(cls.account_counter, account.account_id + 1)  # Update counter
+        """Load accounts from CSV file."""
+        initialize_csv_file(ACCOUNT_FILE, ACCOUNT_FIELDS)
+        
+        cls.accounts.clear()
+        accounts = read_csv(ACCOUNT_FILE)
+        if accounts:
+            cls.account_counter = max(int(a.get('account_id', 0)) for a in accounts) + 1
+
+        Account._loading = True
+        for row in accounts:
+            try:
+                account = Account(
+                    account_id=int(row.get('account_id', 0)),
+                    account_name=row.get('account_name', ''),
+                    account_balance=float(row.get('account_balance', 0.0)),
+                    account_type=row.get('account_type', '')
+                )
+                cls.accounts.append(account)
+            except ValueError as e:
+                print(f"Skipping invalid account: {e}")
+        Account._loading = False
 
     @classmethod
     def add_account(cls, account):
@@ -65,23 +71,20 @@ class AccountManager:
 
     @classmethod
     def save_account(cls, account):
-        """Save the account to the accounts.txt file."""
-        from models import Account  # Move import here to avoid circular import
-        with open(ACCOUNT_FILE, 'a') as f:
-            f.write(f"{account.account_id},{account.account_name},{account.account_balance},{account.account_type}\n")
+        """Save a single account to CSV file."""
+        account_data = {
+            'account_id': account.account_id,
+            'account_name': account.account_name,
+            'account_balance': account.account_balance,
+            'account_type': account.account_type
+        }
+        write_csv(ACCOUNT_FILE, account_data, ['account_id', 'account_name', 'account_balance', 'account_type'])
 
     @classmethod
     def account_exists(cls, account_name):
-        with open('accounts.txt', 'r') as file:  # Adjust the file path as necessary
-            for line in file:
-                line = line.strip()
-                if line:  # Check if the line is not empty
-                    values = line.split(',')
-                    if len(values) > 1:  # Ensure there are enough values
-                        existing_account_name = values[1]  # Assuming account_name is the second field
-                        if existing_account_name == account_name:
-                            return True
-        return False
+        """Check if an account exists by name using CSV."""
+        accounts = read_csv(ACCOUNT_FILE)
+        return any(account['account_name'] == account_name for account in accounts)
 
     @classmethod
     def get_account_type_by_name(cls, account_name):
@@ -92,17 +95,17 @@ class AccountManager:
         return None  # Return None if the account does not exist
 
 def read_accounts():
+    """Read accounts from CSV file."""
     from models import Account
-    if not os.path.exists('accounts.txt'):
-        return []
-    with open('accounts.txt', "r") as f:
-        accounts = []
-        for line in f.readlines()[1:]:  # Skip the header line
-            account_id, account_type, account_name, account_balance = line.strip().split(',')
+    accounts = []
+    for row in read_csv(ACCOUNT_FILE):
+        try:
             accounts.append(Account(
-                account_id=int(account_id),
-                account_type=account_type,
-                account_name=account_name,
-                account_balance=float(account_balance)
+                account_id=int(row['account_id']),
+                account_type=row['account_type'],
+                account_name=row['account_name'],
+                account_balance=float(row['account_balance'])
             ))
-        return accounts
+        except ValueError as e:
+            print(f"Skipping invalid account: {e}")
+    return accounts

@@ -1,5 +1,7 @@
 from pydantic import BaseModel, Field, field_validator
-from category_manager import CategoryManager
+from datetime import datetime
+from typing import Optional
+
 # Define the Account data model
 class Account(BaseModel):
     account_id: int = Field(default=None)  # Allow default None for instantiation
@@ -32,7 +34,9 @@ class Category(BaseModel):
     def check_category_exists(cls, category_id):
         if cls._loading:
             return category_id  # Skip validation if loading
-        if category_id is not None and category_id not in CategoryManager.get_all_category_ids():
+        # Use a method to validate category ID without direct import
+        from category_manager import CategoryManager
+        if category_id is not None and not CategoryManager.is_valid_category_id(category_id):
             raise ValueError(f"Category ID {category_id} does not exist.")
         return category_id
 
@@ -48,7 +52,7 @@ class Category(BaseModel):
 # Define the Transaction data model
 class Transaction(BaseModel):
     transaction_id: int
-    date: str
+    date: str = Field(alias='transaction_date')  # Allow 'transaction_date' as an alias for 'date'
     month: str
     description: str
     amount: float
@@ -56,6 +60,27 @@ class Transaction(BaseModel):
     account_id: int
     account_name: str
     transaction_type: str  # Add transaction type (credit or debit)
+
+    @field_validator('date')
+    def validate_date(cls, date_str):
+        try:
+            transaction_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+            current_date = datetime.now().date()
+            
+            if transaction_date > current_date:
+                raise ValueError("Transaction date cannot be in the future")
+            
+            return date_str
+        except ValueError as e:
+            if "Transaction date cannot be in the future" in str(e):
+                raise
+            raise ValueError("Invalid date format. Use YYYY-MM-DD")
+
+    @field_validator('amount')
+    def validate_amount(cls, amount):
+        if amount <= 0:
+            raise ValueError("Transaction amount must be greater than zero")
+        return amount
 
     @field_validator('account_id')
     def check_account_exists(cls, account_id, values):
@@ -70,3 +95,6 @@ class Transaction(BaseModel):
         if transaction_type not in ['credit', 'debit']:
             raise ValueError("Transaction type must be either 'credit' or 'debit'.")
         return transaction_type
+
+    class Config:
+        populate_by_name = True  # Allow population by alias names

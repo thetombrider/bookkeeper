@@ -1,52 +1,64 @@
 import os
-
 from config import CATEGORIES_FILE
+from utils.csv_handler import read_csv, write_csv, write_csv_all, initialize_csv_file
+from models import Category
+
+CATEGORY_FIELDS = ['category_id', 'category_name']
 
 class CategoryManager:
     categories = []
-    category_counter = 1  # Start category IDs from 1
+    category_counter = 1
 
     @classmethod
     def load_categories(cls):
-        """Load categories from the categories.txt file."""
-        from models import Category
-        Category._loading = True  # Set loading state
-        cls.categories.clear()  # Clear existing categories
-        if os.path.exists(CATEGORIES_FILE):
-            with open(CATEGORIES_FILE, 'r') as f:
-                for line in f:
-                    line = line.strip()
-                    if line:  # Check if the line is not empty
-                        category_id, category_name = line.split(',')
-                        category = Category(
-                            category_id=int(category_id),  # Set category_id
-                            category_name=category_name
-                        )
-                        cls.categories.append(category)
-                        cls.category_counter = max(cls.category_counter, category.category_id + 1)  # Update counter
-        Category._loading = False  # Reset loading state
+        """Load categories from CSV file."""
+        initialize_csv_file(CATEGORIES_FILE, CATEGORY_FIELDS)
+        
+        cls.categories.clear()
+        categories = read_csv(CATEGORIES_FILE)
+        
+        # Debug: Print the raw data read from the CSV
+        print("Raw categories data:", categories)
+        
+        if categories:
+            cls.category_counter = max(int(c.get('category_id', 0)) for c in categories) + 1
+
+        Category._loading = True
+        for row in categories:
+            try:
+                category = Category(
+                    category_id=int(row.get('category_id', 0)),
+                    category_name=row.get('category_name', '')
+                )
+                cls.categories.append(category)
+            except ValueError as e:
+                print(f"Skipping invalid category: {e}")
+        Category._loading = False
+
+    @classmethod
+    def is_valid_category_id(cls, category_id):
+        """Check if a category ID is valid."""
+        return any(category.category_id == category_id for category in cls.categories)
+
+    @classmethod
+    def save_category(cls, category):
+        """Save a single category to CSV file."""
+        category_data = {
+            'category_id': category.category_id,
+            'category_name': category.category_name
+        }
+        write_csv(CATEGORIES_FILE, category_data, CATEGORY_FIELDS)
 
     @classmethod
     def add_category(cls, category):
         if cls.category_exists(category.category_name):
             return f"Category '{category.category_name}' already exists. Cannot add duplicate."
-        else:
-            # Assign the next available category ID
-            category.category_id = cls.get_next_category_id()  
-            cls.categories.append(category)
-            cls.increment_category_counter()  # Increment the counter for the next category
-            cls.save_category(category)  # Save the new category to the file
-            return f"Category '{category.category_name}' created successfully."
-
-    @classmethod
-    def save_category(cls, category):
-        """Save the category to the categories.txt file."""
-        with open(CATEGORIES_FILE, 'a') as f:
-            f.write(f"{category.category_id},{category.category_name}\n")
-
-    @classmethod
-    def get_all_category_names(cls):
-        return [category.category_name for category in cls.categories]
+        
+        category.category_id = cls.get_next_category_id()
+        cls.categories.append(category)
+        cls.increment_category_counter()
+        cls.save_category(category)
+        return f"Category '{category.category_name}' created successfully."
 
     @classmethod
     def category_exists(cls, category_name):
@@ -55,17 +67,12 @@ class CategoryManager:
 
     @classmethod
     def get_all_categories(cls):
-        return cls.categories  # Return all categories if needed
+        return cls.categories
 
     @classmethod
     def get_all_category_ids(cls):
         """Retrieve all category IDs."""
         return [category.category_id for category in cls.categories]
-
-    @classmethod
-    def check_category_exists(cls, category_id):
-        """Check if a category exists."""
-        return any(category.category_id == category_id for category in cls.categories)
 
     @classmethod
     def get_next_category_id(cls):

@@ -6,9 +6,16 @@ from category_manager import CategoryManager  # Import the CategoryManager
 
 def load_data():
     """Load all necessary data from files."""
-    AccountManager.load_accounts()  # Load accounts from file
-    CategoryManager.load_categories()  # Load categories from file
-    TransactionManager.load_transactions()  # Load transactions from file
+    print("Loading data...")
+    try:
+        AccountManager.load_accounts()
+        print("Accounts loaded successfully")
+        CategoryManager.load_categories()
+        print("Categories loaded successfully")
+        TransactionManager.load_transactions()
+        print("Transactions loaded successfully")
+    except Exception as e:
+        print(f"Error loading data: {e}")
 
 
 @click.group()

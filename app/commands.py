@@ -2,10 +2,11 @@
 import click
 from datetime import datetime
 from models import Transaction, Account, Category
-from transaction_manager import TransactionManager, save_transaction, read_transactions, TRANSACTION_FILE
+from transaction_manager import TransactionManager
 from account_manager import AccountManager
 from category_manager import CategoryManager
-from config import TRANSACTION_FILE, VALID_ACCOUNT_TYPES  # Import the transaction file path
+from config import TRANSACTION_FILE, VALID_ACCOUNT_TYPES
+from utils.csv_handler import read_csv
 
 @click.command()
 @click.option('--date', prompt='Transaction date (YYYY-MM-DD)', help='The date of the transaction.')
@@ -18,22 +19,51 @@ def add_transaction(date, description, amount, category, account_name, transacti
     """Add a new transaction."""
     
     # Load categories and accounts before validation
-    CategoryManager.load_categories()  # Ensure categories are loaded
-    AccountManager.load_accounts()  # Ensure accounts are loaded
+    CategoryManager.load_categories()
+    AccountManager.load_accounts()
 
     # Validate the transaction date
     while True:
         if date.lower() == 'exit':
             click.echo("Transaction cancelled.")
-            return  # Exit the function
+            return
         try:
-            transaction_date = datetime.strptime(date, "%Y-%m-%d")
-            if transaction_date > datetime.now():
-                raise ValueError("The transaction date cannot be in the future.")
-            break  # Exit the loop if the date is valid
+            # Try to create a transaction to validate the date
+            test_transaction = Transaction(
+                transaction_id=1,
+                transaction_date=date,
+                month=date.split('-')[1],
+                description='test',
+                amount=1.0,  # Use valid amount for date validation
+                category=Category(category_name='test'),
+                account_name='test',
+                account_id=1,
+                transaction_type='debit'
+            )
+            break
         except ValueError as e:
-            click.echo(f"Error: {e}. Please enter a valid date (or type 'exit' to cancel).")
-            date = click.prompt('Transaction date (YYYY-MM-DD)', type=str)
+            if "Transaction date cannot be in the future" in str(e):
+                click.echo("Error: Transaction date cannot be in the future. Please enter a valid date or type 'exit' to cancel.")
+            else:
+                click.echo("Error: Invalid date format. Please enter a valid date (YYYY-MM-DD) or type 'exit' to cancel.")
+            date = click.prompt("Transaction date (YYYY-MM-DD)", type=str)
+
+    # Validate the transaction amount
+    while True:
+        if str(amount).lower() == 'exit':
+            click.echo("Transaction cancelled.")
+            return
+        try:
+            if amount <= 0:
+                raise ValueError("Transaction amount must be greater than zero")
+            break
+        except ValueError as e:
+            click.echo(f"Error: {str(e)}. Please enter a valid amount or type 'exit' to cancel.")
+            try:
+                amount = float(click.prompt("Transaction amount", type=str))
+            except ValueError:
+                click.echo("Error: Please enter a valid number.")
+                continue
 
     # Check for valid category first
     while True:
@@ -41,7 +71,6 @@ def add_transaction(date, description, amount, category, account_name, transacti
             click.echo("Transaction cancelled.")
             return
         if CategoryManager.category_exists(category):
-            # Retrieve the Category instance
             category_instance = next((cat for cat in CategoryManager.categories if cat.category_name == category), None)
             break
         else:
@@ -59,22 +88,26 @@ def add_transaction(date, description, amount, category, account_name, transacti
             click.echo("Account does not exist. Please enter a valid account name (or type 'exit' to cancel).")
             account_name = click.prompt("Account Name", type=str)
 
-    # Create the transaction instance
-    transaction = Transaction(
-        transaction_id=TransactionManager.transaction_counter,  # Assuming you have a way to get the next ID
-        date=date,
-        month=date.split('-')[1],  # Extract month from date
-        description=description,
-        amount=amount,
-        category=category_instance,  # Use the Category instance
-        account_name=account_name,
-        account_id=AccountManager.get_account_id_by_name(account_name),  # Assuming you have this method
-        transaction_type=transaction_type  # Set the transaction type
-    )
+    try:
+        # Create the transaction instance
+        transaction = Transaction(
+            transaction_id=TransactionManager.get_next_transaction_id(),
+            transaction_date=date,
+            month=date.split('-')[1],
+            description=description,
+            amount=amount,
+            category=category_instance,
+            account_name=account_name,
+            account_id=AccountManager.get_account_id_by_name(account_name),
+            transaction_type=transaction_type
+        )
 
-    # Add the transaction to the manager
-    TransactionManager.add_transaction(transaction)
-    click.echo("Transaction added successfully.")
+        # Add the transaction
+        TransactionManager.add_transaction(transaction)
+        click.echo(f"Transaction added successfully: {description} for {amount}")
+    except ValueError as e:
+        click.echo(f"Error creating transaction: {str(e)}")
+        return
 
 @click.command()
 def view_transactions():
@@ -88,30 +121,22 @@ def view_transactions():
         click.echo(transaction)
 
 def read_transactions():
-    """Read transactions from the transactions.txt file."""
+    """Read transactions from the CSV file."""
     transactions = []
-    try:
-        with open(TRANSACTION_FILE, 'r') as f:
-            for line in f:
-                line = line.strip()
-                if not line:  # Skip empty lines
-                    continue
-                try:
-                    transaction_id, date, month, description, amount, category_name, account_name = line.split(',')
-                    # Create a Transaction instance or a dictionary to store the transaction
-                    transactions.append({
-                        'transaction_id': transaction_id,
-                        'date': date,
-                        'month': month,
-                        'description': description,
-                        'amount': float(amount),
-                        'category_name': category_name,
-                        'account_name': account_name
-                    })
-                except ValueError:
-                    print(f"Skipping improperly formatted line: {line}")
-    except FileNotFoundError:
-        print("Transaction file not found.")
+    for row in read_csv(TRANSACTION_FILE):
+        try:
+            transactions.append({
+                'transaction_id': row['transaction_id'],
+                'date': row['transaction_date'],
+                'month': row['month'],
+                'description': row['description'],
+                'amount': float(row['amount']),
+                'category_name': row['category_id'],
+                'account_name': row['account_name'],
+                'transaction_type': row['transaction_type']
+            })
+        except (ValueError, KeyError) as e:
+            print(f"Skipping invalid transaction: {e}")
     return transactions
 
 @click.command()

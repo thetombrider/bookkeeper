@@ -13,3 +13,7 @@ accounts.txt
 transactions.txt
 categories.txt
 .DS_Store
+
+# Ignore data files
+*.csv
+*.txt
