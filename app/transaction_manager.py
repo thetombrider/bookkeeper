@@ -76,10 +76,6 @@ class TransactionManager:
     transaction_counter = 1  # Start transaction IDs from 1
 
     @classmethod
-    def get_next_transaction_id(cls):
-        return cls.transaction_counter
-
-    @classmethod
     def increment_transaction_counter(cls):
         cls.transaction_counter += 1
 
@@ -146,3 +142,15 @@ class TransactionManager:
         """Save the transaction to the transactions.txt file."""
         with open(TRANSACTION_FILE, 'a') as f:
             f.write(f"{transaction.transaction_id},{transaction.date},{transaction.month},{transaction.description},{transaction.amount},{transaction.category.category_name},{transaction.account_name},{transaction.account_id},{transaction.transaction_type}\n")
+
+# Function to get the next transaction ID
+def get_next_transaction_id(file_path):
+    with open(file_path, 'r') as file:
+        lines = file.readlines()
+        # Extract IDs and find the maximum
+        ids = [int(line.split(',')[0]) for line in lines if line.strip()]
+        return max(ids) + 1 if ids else 1
+
+# Update the transaction addition logic
+transaction_id = get_next_transaction_id('transactions.txt')
+# Use transaction_id when adding the new transaction
