@@ -13,7 +13,7 @@ It handles all database operations and business rules for:
 from datetime import date
 from decimal import Decimal
 from typing import List, Optional, Dict
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func, and_
 
 from . import models
@@ -116,7 +116,9 @@ class BookkeepingService:
         Returns:
             List[Account]: List of accounts matching the criteria
         """
-        query = self.db.query(models.Account)
+        query = self.db.query(models.Account).options(
+            joinedload(models.Account.category)
+        )
         
         if category_id:
             query = query.filter(models.Account.category_id == category_id)

@@ -261,7 +261,7 @@ async function loadAccounts() {
                             <td>${account.code}</td>
                             <td>${account.name}</td>
                             <td>${account.type}</td>
-                            <td>${account.category?.name || ''}</td>
+                            <td>${account.category ? account.category.name : 'Uncategorized'}</td>
                             <td>${account.description || ''}</td>
                             <td>
                                 <button onclick="editAccount('${account.id}')">Edit</button>

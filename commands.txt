@@ -1,0 +1,2 @@
+cd frontend && python -m http.server 3000
+cd backend && uvicorn api:app --reload
