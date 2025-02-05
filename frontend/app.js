@@ -1041,9 +1041,9 @@ async function generateIncomeStatement() {
 
 // Utility functions
 function formatCurrency(amount) {
-    return new Intl.NumberFormat('en-US', {
+    return new Intl.NumberFormat('it-IT', {
         style: 'currency',
-        currency: 'USD'
+        currency: 'EUR'
     }).format(amount);
 }
 
@@ -1513,7 +1513,7 @@ async function showOpeningBalanceDialog(accountId, accountName) {
                 body: JSON.stringify({
                     name: 'Saldi di Apertura',
                     type: 'equity',
-                    description: 'Account for opening balances'
+                    description: 'Saldi di apertura dei conti patrimoniali'
                 })
             });
 
