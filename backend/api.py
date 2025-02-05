@@ -181,6 +181,18 @@ async def list_accounts(
     service = BookkeepingService(db)
     return service.list_accounts(category_id=category_id, account_type=account_type)
 
+@app.get("/accounts/{account_id}", response_model=AccountResponse, tags=["accounts"])
+async def get_account(
+    account_id: str,
+    db: Session = Depends(get_db)
+):
+    """Get a specific account by ID."""
+    service = BookkeepingService(db)
+    account = service.get_account(account_id)
+    if not account:
+        raise HTTPException(status_code=404, detail="Account not found")
+    return account
+
 @app.post("/accounts/", response_model=AccountResponse, tags=["accounts"])
 async def create_account(
     account_data: AccountCreate,

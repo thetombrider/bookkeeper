@@ -40,6 +40,17 @@
                         <input type="text" id="categoryName" required>
                     </div>
                     <div class="form-group">
+                        <label for="categoryType">Category Type:</label>
+                        <select id="categoryType" required>
+                            <option value="">Select category type</option>
+                            <option value="asset">Asset</option>
+                            <option value="liability">Liability</option>
+                            <option value="equity">Equity</option>
+                            <option value="income">Income</option>
+                            <option value="expense">Expense</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
                         <label for="categoryDescription">Description:</label>
                         <textarea id="categoryDescription"></textarea>
                     </div>
@@ -59,22 +70,25 @@
                 <h3>Create Account</h3>
                 <form id="accountForm" onsubmit="createAccount(event)">
                     <div class="form-group">
-                        <label for="accountCategory">Category:</label>
-                        <select id="accountCategory"></select>
-                    </div>
-                    <div class="form-group">
-                        <label for="accountName">Name:</label>
-                        <input type="text" id="accountName" required>
-                    </div>
-                    <div class="form-group">
                         <label for="accountType">Type:</label>
-                        <select id="accountType" required>
+                        <select id="accountType" required onchange="updateCategoryDropdown()">
+                            <option value="">Select account type</option>
                             <option value="asset">Asset</option>
                             <option value="liability">Liability</option>
                             <option value="equity">Equity</option>
                             <option value="income">Income</option>
                             <option value="expense">Expense</option>
                         </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="accountCategory">Category:</label>
+                        <select id="accountCategory" required disabled>
+                            <option value="">Select account type first</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="accountName">Name:</label>
+                        <input type="text" id="accountName" required>
                     </div>
                     <div class="form-group">
                         <label for="accountDescription">Description:</label>

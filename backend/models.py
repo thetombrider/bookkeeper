@@ -29,6 +29,7 @@ class AccountCategory(Base):
     id = Column(String(36), primary_key=True, default=lambda: str(uuid4()))
     name = Column(String, nullable=False)
     description = Column(String)
+    account_type = Column(SQLEnum(AccountType), nullable=False)
     created_at = Column(DateTime, nullable=False, default=func.now())
     updated_at = Column(DateTime, nullable=False, default=func.now(), onupdate=func.now())
 
@@ -81,6 +82,7 @@ class JournalEntry(Base):
 class AccountCategoryBase(BaseModel):
     name: str
     description: Optional[str] = None
+    account_type: AccountType
 
 class AccountCategoryCreate(AccountCategoryBase):
     pass

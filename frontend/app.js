@@ -8,6 +8,9 @@
 // Configuration
 const API_URL = 'http://localhost:8000';
 
+// Update loadCategories to store categories globally
+let allCategories = [];
+
 /**
  * Navigation and Section Management
  * Handles showing/hiding different sections of the application and loading their data
@@ -54,7 +57,7 @@ function showSection(sectionId) {
 async function loadCategories() {
     try {
         const response = await fetch(`${API_URL}/account-categories/`);
-        const categories = await response.json();
+        allCategories = await response.json();
         
         // Update categories list with table view
         const categoriesList = document.getElementById('categoriesList');
@@ -63,17 +66,19 @@ async function loadCategories() {
                 <thead>
                     <tr>
                         <th>Name</th>
+                        <th>Type</th>
                         <th>Description</th>
                         <th>Actions</th>
                     </tr>
                 </thead>
                 <tbody>
-                    ${categories.map(category => `
+                    ${allCategories.map(category => `
                         <tr>
                             <td>${category.name}</td>
+                            <td>${category.account_type}</td>
                             <td>${category.description || ''}</td>
                             <td>
-                                <button onclick="editCategory('${category.id}', '${category.name}', '${category.description || ''}')">Edit</button>
+                                <button onclick="editCategory('${category.id}', '${category.name}', '${category.description || ''}', '${category.account_type}')">Edit</button>
                                 <button onclick="deleteCategory('${category.id}')">Delete</button>
                             </td>
                         </tr>
@@ -82,20 +87,35 @@ async function loadCategories() {
             </table>
         `;
         
-        // Update category dropdown in accounts section
-        const categorySelect = document.getElementById('accountCategory');
-        if (categorySelect) {
-            categorySelect.innerHTML = `
-                <option value="">Select a category</option>
-                ${categories.map(category => `
-                    <option value="${category.id}">${category.name}</option>
-                `).join('')}
-            `;
-        }
+        // Update category dropdown in accounts section if needed
+        updateCategoryDropdown();
     } catch (error) {
         console.error('Error loading categories:', error);
         alert('Error loading categories. Please try again.');
     }
+}
+
+// Add function to update category dropdown based on selected account type
+function updateCategoryDropdown() {
+    const accountType = document.getElementById('accountType').value;
+    const categorySelect = document.getElementById('accountCategory');
+    
+    if (!accountType) {
+        categorySelect.disabled = true;
+        categorySelect.innerHTML = '<option value="">Select account type first</option>';
+        return;
+    }
+    
+    // Filter categories by account type
+    const filteredCategories = allCategories.filter(category => category.account_type === accountType);
+    
+    categorySelect.innerHTML = `
+        <option value="">Select a category</option>
+        ${filteredCategories.map(category => `
+            <option value="${category.id}">${category.name}</option>
+        `).join('')}
+    `;
+    categorySelect.disabled = false;
 }
 
 /**
@@ -107,7 +127,8 @@ async function createCategory(event) {
     
     const categoryData = {
         name: document.getElementById('categoryName').value,
-        description: document.getElementById('categoryDescription').value
+        description: document.getElementById('categoryDescription').value,
+        account_type: document.getElementById('categoryType').value
     };
     
     try {
@@ -125,7 +146,7 @@ async function createCategory(event) {
         
         // Clear form and reload categories
         event.target.reset();
-        loadCategories();
+        await loadCategories();
         
         alert('Category created successfully!');
     } catch (error) {
@@ -140,10 +161,11 @@ async function createCategory(event) {
  * @param {string} name - Category name
  * @param {string} description - Category description
  */
-function editCategory(id, name, description) {
+function editCategory(id, name, description, accountType) {
     // Populate form with category data
     document.getElementById('categoryName').value = name;
     document.getElementById('categoryDescription').value = description;
+    document.getElementById('categoryType').value = accountType;
     
     // Change form submit handler to update instead of create
     const form = document.getElementById('categoryForm');
@@ -168,7 +190,8 @@ async function updateCategory(event, id) {
     
     const categoryData = {
         name: document.getElementById('categoryName').value,
-        description: document.getElementById('categoryDescription').value
+        description: document.getElementById('categoryDescription').value,
+        account_type: document.getElementById('categoryType').value
     };
     
     try {
@@ -188,7 +211,7 @@ async function updateCategory(event, id) {
         cancelEditCategory();
         
         // Reload categories
-        loadCategories();
+        await loadCategories();
         
         alert('Category updated successfully!');
     } catch (error) {
@@ -250,7 +273,7 @@ async function deleteCategory(id) {
         }
         
         // Reload categories
-        loadCategories();
+        await loadCategories();
         alert(data.message || 'Category deleted successfully!');
     } catch (error) {
         console.error('Network or parsing error:', error);

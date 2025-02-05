@@ -2,3 +2,4 @@ venv/
 .env
 accounts-tommy.txt
 dbpw.txt
+migrations/
