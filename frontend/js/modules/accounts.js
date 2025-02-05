@@ -37,9 +37,11 @@ export function updateAccountsList(accounts) {
                 <option value="category">Category</option>
             </select>
         </div>
+        <div class="table-container">
+            ${generateAccountsTable(accounts)}
+        </div>
     `;
 
-    html += generateAccountsTable(accounts);
     oldElement.innerHTML = html;
 
     // Add event listeners using event delegation
@@ -77,7 +79,7 @@ export function updateAccountsList(accounts) {
     if (sortSelect) {
         sortSelect.addEventListener('change', () => {
             const tableHtml = generateAccountsTable(accounts);
-            const tableContainer = oldElement.querySelector('table')?.parentElement;
+            const tableContainer = oldElement.querySelector('.table-container');
             if (tableContainer) {
                 tableContainer.innerHTML = tableHtml;
             }
