@@ -114,29 +114,40 @@
             <section class="journal-entries">
                 <h2>Add Transaction</h2>
                 
-                <div class="journal-actions">
-                    <button onclick="addJournalEntryRow()">
-                        <span>Add Entry</span>
-                    </button>
-                    <button onclick="createTransaction(event)" class="create-transaction">
-                        <span>Create Transaction</span>
-                    </button>
-                </div>
-
-                <div class="journal-entries-list">
-                    <!-- Journal entries will be added here dynamically -->
-                </div>
-
-                <div class="journal-totals">
-                    <div class="journal-total">
-                        <label>Total Debits:</label>
-                        <span id="total-debits">€0,00</span>
+                <form id="transactionForm" onsubmit="createTransaction(event)">
+                    <div class="form-group">
+                        <label for="transactionDate">Date:</label>
+                        <input type="date" id="transactionDate" required>
                     </div>
-                    <div class="journal-total">
-                        <label>Total Credits:</label>
-                        <span id="total-credits">€0,00</span>
+                    <div class="form-group">
+                        <label for="transactionDescription">Description:</label>
+                        <input type="text" id="transactionDescription" required>
                     </div>
-                </div>
+
+                    <div class="journal-actions">
+                        <button type="button" onclick="addJournalEntryRow()">
+                            <span>Add Entry</span>
+                        </button>
+                        <button type="submit" class="create-transaction">
+                            <span>Create Transaction</span>
+                        </button>
+                    </div>
+
+                    <div class="journal-entries-list">
+                        <!-- Journal entries will be added here dynamically -->
+                    </div>
+
+                    <div class="journal-totals">
+                        <div class="journal-total">
+                            <label>Total Debits:</label>
+                            <span id="total-debits">€0,00</span>
+                        </div>
+                        <div class="journal-total">
+                            <label>Total Credits:</label>
+                            <span id="total-credits">€0,00</span>
+                        </div>
+                    </div>
+                </form>
             </section>
 
             <div class="list-container">
