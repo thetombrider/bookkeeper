@@ -1,0 +1,15 @@
+Asset: Allianz	
+Asset: Buddybank	
+Asset: ING - Checking Account	
+Asset: ING - Deposit Account	
+Asset: Revolut	
+Asset: Paypal	
+Asset: Satispay	
+Asset: Cash	
+Asset: Meal Vouchers	
+Asset: Investments	
+Asset: Crypto	
+
+
+Liability: ING - Credit Card
+

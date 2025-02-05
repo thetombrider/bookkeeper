@@ -1,0 +1,240 @@
+{
+	"info": {
+		"_postman_id": "b0e7b3a5-1b3d-4b3e-8d3e-1b3d4b3e8d3e",
+		"name": "Bookkeeper API",
+		"description": "Personal Finance Bookkeeper API with double-entry bookkeeping",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:8000",
+			"type": "string"
+		},
+		{
+			"key": "auth_token",
+			"value": "",
+			"type": "string"
+		}
+	],
+	"auth": {
+		"type": "bearer",
+		"bearer": [
+			{
+				"key": "token",
+				"value": "{{auth_token}}",
+				"type": "string"
+			}
+		]
+	},
+	"item": [
+		{
+			"name": "Authentication",
+			"item": [
+				{
+					"name": "Sign Up",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = JSON.parse(responseBody);",
+									"if (jsonData.user_id) {",
+									"    pm.collectionVariables.set(\"user_id\", jsonData.user_id);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"test@example.com\",\n    \"password\": \"your-secure-password123\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/signup",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "signup"]
+						},
+						"description": "Create a new user account"
+					}
+				},
+				{
+					"name": "Login",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = JSON.parse(responseBody);",
+									"if (jsonData.access_token) {",
+									"    pm.collectionVariables.set(\"auth_token\", jsonData.access_token);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"test@example.com\",\n    \"password\": \"your-secure-password123\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/login",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "login"]
+						},
+						"description": "Login and get access token"
+					}
+				}
+			]
+		},
+		{
+			"name": "Accounts",
+			"item": [
+				{
+					"name": "Create Account",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"New Bank Account\",\n    \"type\": \"asset\",\n    \"code\": \"NEW_BANK\",\n    \"description\": \"My new bank account\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/accounts/",
+							"host": ["{{base_url}}"],
+							"path": ["accounts", ""]
+						},
+						"description": "Create a new account"
+					}
+				}
+			]
+		},
+		{
+			"name": "Transactions",
+			"item": [
+				{
+					"name": "Create Transaction",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"transaction_date\": \"2024-03-15\",\n    \"description\": \"Monthly Salary\",\n    \"reference_number\": \"SAL-2024-03\",\n    \"entries\": [\n        {\n            \"account_id\": \"BANK_ACCOUNT_ID\",\n            \"debit_amount\": 5000.00,\n            \"credit_amount\": 0\n        },\n        {\n            \"account_id\": \"SALARY_INCOME_ID\",\n            \"debit_amount\": 0,\n            \"credit_amount\": 5000.00\n        }\n    ]\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/transactions/",
+							"host": ["{{base_url}}"],
+							"path": ["transactions", ""]
+						},
+						"description": "Create a new transaction with journal entries"
+					}
+				},
+				{
+					"name": "Get Transaction",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/transactions/:transaction_id",
+							"host": ["{{base_url}}"],
+							"path": ["transactions", ":transaction_id"],
+							"variable": [
+								{
+									"key": "transaction_id",
+									"value": "TRANSACTION_ID",
+									"description": "UUID of the transaction"
+								}
+							]
+						},
+						"description": "Get a specific transaction by ID"
+					}
+				}
+			]
+		},
+		{
+			"name": "Reports",
+			"item": [
+				{
+					"name": "Balance Sheet",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/balance-sheet/",
+							"host": ["{{base_url}}"],
+							"path": ["balance-sheet", ""],
+							"query": [
+								{
+									"key": "as_of",
+									"value": "2024-03-15",
+									"description": "Optional date parameter",
+									"disabled": true
+								}
+							]
+						},
+						"description": "Get balance sheet report"
+					}
+				},
+				{
+					"name": "Income Statement",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/income-statement/",
+							"host": ["{{base_url}}"],
+							"path": ["income-statement", ""],
+							"query": [
+								{
+									"key": "start_date",
+									"value": "2024-01-01",
+									"description": "Start date for the period"
+								},
+								{
+									"key": "end_date",
+									"value": "2024-03-15",
+									"description": "End date for the period"
+								}
+							]
+						},
+						"description": "Get income statement report"
+					}
+				}
+			]
+		}
+	]
+} 
