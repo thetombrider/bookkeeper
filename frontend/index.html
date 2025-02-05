@@ -10,11 +10,11 @@
     <nav>
         <h1>Personal Finance Bookkeeper</h1>
         <ul>
-            <li><a href="#" onclick="showSection('balance-sheet')">Balance Sheet</a></li>
-            <li><a href="#" onclick="showSection('income-statement')">Income Statement</a></li>
-            <li><a href="#" onclick="showSection('categories')">Categories</a></li>
-            <li><a href="#" onclick="showSection('accounts')">Accounts</a></li>
-            <li><a href="#" onclick="showSection('transactions')">Transactions</a></li>
+            <li><a href="#" data-section="balance-sheet">Balance Sheet</a></li>
+            <li><a href="#" data-section="income-statement">Income Statement</a></li>
+            <li><a href="#" data-section="categories">Categories</a></li>
+            <li><a href="#" data-section="accounts">Accounts</a></li>
+            <li><a href="#" data-section="transactions">Transactions</a></li>
         </ul>
     </nav>
 
@@ -25,7 +25,7 @@
             <div class="filter-controls">
                 <label for="balanceSheetDate">As of:</label>
                 <input type="date" id="balanceSheetDate">
-                <button onclick="loadBalanceSheet()" class="refresh-btn">Refresh</button>
+                <button data-action="refresh-balance-sheet" class="refresh-btn">Refresh</button>
             </div>
             <div id="accountsTable"></div>
         </section>
@@ -38,7 +38,7 @@
                 <input type="date" id="incomeStartDate">
                 <label for="incomeEndDate">To:</label>
                 <input type="date" id="incomeEndDate">
-                <button onclick="loadIncomeStatement()" class="refresh-btn">Refresh</button>
+                <button data-action="refresh-income-statement" class="refresh-btn">Refresh</button>
             </div>
             <div id="incomeStatementTable"></div>
         </section>
@@ -48,7 +48,7 @@
             <h2>Account Categories</h2>
             <div class="form-container">
                 <h3>Create Category</h3>
-                <form id="categoryForm" onsubmit="createCategory(event)">
+                <form id="categoryForm">
                     <div class="form-group">
                         <label for="categoryName">Name:</label>
                         <input type="text" id="categoryName" required>
@@ -71,10 +71,10 @@
             <h2>Chart of Accounts</h2>
             <div class="form-container">
                 <h3>Create Account</h3>
-                <form id="accountForm" onsubmit="createAccount(event)">
+                <form id="accountForm">
                     <div class="form-group">
                         <label for="accountType">Type:</label>
-                        <select id="accountType" required onchange="updateCategoryDropdown()">
+                        <select id="accountType" required>
                             <option value="">Select account type</option>
                             <option value="asset">Asset</option>
                             <option value="liability">Liability</option>
@@ -114,7 +114,7 @@
             <section class="journal-entries">
                 <h2>Add Transaction</h2>
                 
-                <form id="transactionForm" onsubmit="createTransaction(event)">
+                <form id="transactionForm">
                     <div class="form-group">
                         <label for="transactionDate">Date:</label>
                         <input type="date" id="transactionDate" required>
@@ -125,7 +125,7 @@
                     </div>
 
                     <div class="journal-actions">
-                        <button type="button" onclick="addJournalEntryRow()">
+                        <button type="button" data-action="add-journal-entry">
                             <span>Add Entry</span>
                         </button>
                         <button type="submit" class="create-transaction">
@@ -165,7 +165,7 @@
                     <div class="form-group">
                         <label for="balanceSheetDate">As of:</label>
                         <input type="date" id="balanceSheetDate">
-                        <button onclick="generateBalanceSheet()">Generate</button>
+                        <button data-action="generate-balance-sheet">Generate</button>
                     </div>
                     <div id="balanceSheetReport"></div>
                 </div>
@@ -176,7 +176,7 @@
                         <input type="date" id="incomeStartDate">
                         <label for="incomeEndDate">To:</label>
                         <input type="date" id="incomeEndDate">
-                        <button onclick="generateIncomeStatement()">Generate</button>
+                        <button data-action="generate-income-statement">Generate</button>
                     </div>
                     <div id="incomeStatementReport"></div>
                 </div>
@@ -184,6 +184,6 @@
         </section>
     </main>
 
-    <script src="app.js"></script>
+    <script type="module" src="js/app.js"></script>
 </body>
 </html> 
