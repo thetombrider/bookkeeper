@@ -316,6 +316,9 @@ async function deleteCategory(id) {
 // Accounts
 async function loadAccounts() {
     try {
+        // First load categories to ensure they're available
+        await loadCategories();
+        
         const response = await fetch(`${API_URL}/accounts/`);
         const accounts = await response.json();
         allAccounts = accounts; // Store for later use
@@ -331,21 +334,18 @@ async function loadAccounts() {
 function updateAccountsList(accounts) {
     const accountsList = document.getElementById('accountsList');
     
-    // Group accounts by type first, then by category
-    const accountsByType = {
-        asset: { name: 'Assets', accounts: [] },
-        liability: { name: 'Liabilities', accounts: [] },
-        equity: { name: 'Equity', accounts: [] },
-        income: { name: 'Income', accounts: [] },
-        expense: { name: 'Expenses', accounts: [] }
-    };
-    
-    accounts.forEach(account => {
-        accountsByType[account.type].accounts.push(account);
-    });
-
-    // Create table structure
+    // Add sorting options bar
     let html = `
+        <div class="sorting-options">
+            <label>Group by:</label>
+            <select id="accountSortOption" onchange="updateAccountsListSort()">
+                <option value="type">Account Type</option>
+                <option value="category">Category</option>
+            </select>
+        </div>
+    `;
+
+    html += `
         <table class="accounts-table">
             <thead>
                 <tr>
@@ -358,25 +358,121 @@ function updateAccountsList(accounts) {
             </thead>
             <tbody>`;
 
-    // Add accounts by type
-    Object.entries(accountsByType).forEach(([type, typeData]) => {
-        if (typeData.accounts.length > 0) {
-            // Add type header
+    const sortOption = document.getElementById('accountSortOption')?.value || 'type';
+    
+    if (sortOption === 'type') {
+        // Group by type
+        const accountsByType = {
+            asset: { name: 'Assets', accounts: [] },
+            liability: { name: 'Liabilities', accounts: [] },
+            equity: { name: 'Equity', accounts: [] },
+            income: { name: 'Income', accounts: [] },
+            expense: { name: 'Expenses', accounts: [] }
+        };
+        
+        accounts.forEach(account => {
+            accountsByType[account.type].accounts.push(account);
+        });
+
+        // Add accounts by type
+        Object.entries(accountsByType).forEach(([type, typeData]) => {
+            if (typeData.accounts.length > 0) {
+                html += `
+                    <tr class="category-row" onclick="toggleCategoryAccounts('type-${type}')">
+                        <td colspan="5">
+                            <div class="category-header">
+                                <span class="toggle-icon">▼</span>
+                                ${typeData.name}
+                                <span class="account-count">(${typeData.accounts.length} accounts)</span>
+                            </div>
+                        </td>
+                    </tr>`;
+
+                typeData.accounts.sort((a, b) => a.code.localeCompare(b.code)).forEach(account => {
+                    html += `
+                        <tr class="account-row" data-category="type-${type}">
+                            <td>${account.code}</td>
+                            <td>${account.name}</td>
+                            <td>${account.type}</td>
+                            <td>${account.description || ''}</td>
+                            <td class="account-actions">
+                                <button onclick="editAccount('${account.id}')">Edit</button>
+                                <button onclick="deleteAccount('${account.id}')">Delete</button>
+                                <button onclick="showOpeningBalanceDialog('${account.id}', '${account.name}')">Set Opening Balance</button>
+                            </td>
+                        </tr>`;
+                });
+            }
+        });
+    } else {
+        // Group by category
+        const accountsByCategory = {};
+        const uncategorizedAccounts = [];
+        
+        accounts.forEach(account => {
+            if (account.category_id) {
+                const category = allCategories.find(c => c.id === account.category_id);
+                if (category) {
+                    if (!accountsByCategory[category.id]) {
+                        accountsByCategory[category.id] = {
+                            name: category.name,
+                            accounts: []
+                        };
+                    }
+                    accountsByCategory[category.id].accounts.push(account);
+                } else {
+                    uncategorizedAccounts.push(account);
+                }
+            } else {
+                uncategorizedAccounts.push(account);
+            }
+        });
+
+        // Add categorized accounts
+        Object.entries(accountsByCategory).forEach(([categoryId, categoryData]) => {
             html += `
-                <tr class="category-row" onclick="toggleCategoryAccounts('${type}')">
+                <tr class="category-row" onclick="toggleCategoryAccounts('cat-${categoryId}')">
                     <td colspan="5">
                         <div class="category-header">
                             <span class="toggle-icon">▼</span>
-                            ${typeData.name}
-                            <span class="account-count">(${typeData.accounts.length} accounts)</span>
+                            ${categoryData.name}
+                            <span class="account-count">(${categoryData.accounts.length} accounts)</span>
                         </div>
                     </td>
                 </tr>`;
 
-            // Add accounts for this type
-            typeData.accounts.sort((a, b) => a.code.localeCompare(b.code)).forEach(account => {
+            categoryData.accounts.sort((a, b) => a.code.localeCompare(b.code)).forEach(account => {
                 html += `
-                    <tr class="account-row" data-category="${type}">
+                    <tr class="account-row" data-category="cat-${categoryId}">
+                        <td>${account.code}</td>
+                        <td>${account.name}</td>
+                        <td>${account.type}</td>
+                        <td>${account.description || ''}</td>
+                        <td class="account-actions">
+                            <button onclick="editAccount('${account.id}')">Edit</button>
+                            <button onclick="deleteAccount('${account.id}')">Delete</button>
+                            <button onclick="showOpeningBalanceDialog('${account.id}', '${account.name}')">Set Opening Balance</button>
+                        </td>
+                    </tr>`;
+            });
+        });
+
+        // Add uncategorized accounts
+        if (uncategorizedAccounts.length > 0) {
+            html += `
+                <tr class="category-row" onclick="toggleCategoryAccounts('cat-uncategorized')">
+                    <td colspan="5">
+                        <div class="category-header">
+                            <span class="toggle-icon">▼</span>
+                            Uncategorized
+                            <span class="account-count">(${uncategorizedAccounts.length} accounts)</span>
+                        </div>
+                    </td>
+                </tr>`;
+
+            uncategorizedAccounts.sort((a, b) => a.code.localeCompare(b.code)).forEach(account => {
+                html += `
+                    <tr class="account-row" data-category="cat-uncategorized">
                         <td>${account.code}</td>
                         <td>${account.name}</td>
                         <td>${account.type}</td>
@@ -389,13 +485,18 @@ function updateAccountsList(accounts) {
                     </tr>`;
             });
         }
-    });
+    }
 
     html += `
             </tbody>
         </table>`;
     
     accountsList.innerHTML = html;
+}
+
+// Function to handle sorting option change
+function updateAccountsListSort() {
+    updateAccountsList(allAccounts);
 }
 
 // Update the toggle function to work with type-based categories
@@ -1320,7 +1421,7 @@ async function loadDashboard() {
                             }).join('')}
                             <tr class="total-row">
                                 <td><strong>Total Liabilities</strong></td>
-                                <td class="balance text-right"><strong>${formatCurrency(totalLiabilities)}</strong></td>
+                                <td class="text-right">${formatCurrency(totalLiabilities)}</td>
                             </tr>
                         </tbody>
                     </table>

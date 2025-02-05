@@ -643,4 +643,35 @@ th {
 
 .account-info {
     padding: 0.5rem;
+}
+
+.sorting-options {
+    margin-bottom: 1rem;
+    padding: 0.75rem;
+    background-color: #f8f9fa;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.sorting-options label {
+    margin: 0;
+    font-weight: 600;
+    color: #333;
+}
+
+.sorting-options select {
+    padding: 0.375rem 0.75rem;
+    border: 1px solid #ced4da;
+    border-radius: 4px;
+    background-color: white;
+    min-width: 150px;
+    font-size: 0.9375rem;
+}
+
+.sorting-options select:focus {
+    border-color: #80bdff;
+    outline: 0;
+    box-shadow: 0 0 0 0.2rem rgba(0,123,255,.25);
 } 
