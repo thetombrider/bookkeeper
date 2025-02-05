@@ -95,6 +95,14 @@ export async function loadIncomeStatement(startDate, endDate) {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
         const data = await response.json();
+        console.log('Income Statement Data:', data); // Debug log
+
+        // Ensure data has the expected structure
+        const income = data.income || [];
+        const expenses = data.expenses || [];
+        const totalIncome = data.total_income;
+        const totalExpenses = data.total_expenses;
+        const netIncome = data.net_income;
         
         // Generate HTML for income statement
         let html = '<div class="income-statement">';
@@ -103,17 +111,19 @@ export async function loadIncomeStatement(startDate, endDate) {
         html += '<h3>Income</h3>';
         html += '<table>';
         html += '<tbody>';
-        data.income.forEach(item => {
-            // Only format if the amount exists and is a number
-            const amount = typeof item.amount === 'number' ? item.amount : null;
-            html += `<tr>
-                <td>${item.name}</td>
-                <td class="text-right">${amount !== null ? formatCurrency(amount) : '—'}</td>
-            </tr>`;
-        });
+        if (income.length === 0) {
+            html += `<tr><td colspan="2" class="text-center">No income entries for this period</td></tr>`;
+        } else {
+            income.forEach(item => {
+                html += `<tr>
+                    <td>${item.name}</td>
+                    <td class="text-right">${formatCurrency(Number(item.amount))}</td>
+                </tr>`;
+            });
+        }
         html += `<tr class="total-row">
             <td>Total Income</td>
-            <td class="text-right">${typeof data.total_income === 'number' ? formatCurrency(data.total_income) : '—'}</td>
+            <td class="text-right">${formatCurrency(Number(totalIncome))}</td>
         </tr>`;
         html += '</tbody></table>';
         
@@ -121,17 +131,19 @@ export async function loadIncomeStatement(startDate, endDate) {
         html += '<h3>Expenses</h3>';
         html += '<table>';
         html += '<tbody>';
-        data.expenses.forEach(item => {
-            // Only format if the amount exists and is a number
-            const amount = typeof item.amount === 'number' ? item.amount : null;
-            html += `<tr>
-                <td>${item.name}</td>
-                <td class="text-right">${amount !== null ? formatCurrency(amount) : '—'}</td>
-            </tr>`;
-        });
+        if (expenses.length === 0) {
+            html += `<tr><td colspan="2" class="text-center">No expense entries for this period</td></tr>`;
+        } else {
+            expenses.forEach(item => {
+                html += `<tr>
+                    <td>${item.name}</td>
+                    <td class="text-right">${formatCurrency(Number(item.amount))}</td>
+                </tr>`;
+            });
+        }
         html += `<tr class="total-row">
             <td>Total Expenses</td>
-            <td class="text-right">${typeof data.total_expenses === 'number' ? formatCurrency(data.total_expenses) : '—'}</td>
+            <td class="text-right">${formatCurrency(Number(totalExpenses))}</td>
         </tr>`;
         html += '</tbody></table>';
         
@@ -140,13 +152,18 @@ export async function loadIncomeStatement(startDate, endDate) {
         html += '<tbody>';
         html += `<tr class="grand-total-row">
             <td>Net Income</td>
-            <td class="text-right">${typeof data.net_income === 'number' ? formatCurrency(data.net_income) : '—'}</td>
+            <td class="text-right">${formatCurrency(Number(netIncome))}</td>
         </tr>`;
         html += '</tbody></table>';
         
         html += '</div>';
         
-        document.getElementById('incomeStatement').innerHTML = html;
+        const container = document.getElementById('incomeStatement');
+        if (!container) {
+            console.error('Income statement container not found!');
+            return;
+        }
+        container.innerHTML = html;
     } catch (error) {
         console.error('Error loading income statement:', error);
         alert('Error loading income statement. Please try again.');
