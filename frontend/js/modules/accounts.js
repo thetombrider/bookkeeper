@@ -1,5 +1,5 @@
 import { API_URL, formatCurrency } from './config.js';
-import { loadCategories } from './categories.js';
+import { loadCategories, updateCategoryDropdown } from './categories.js';
 
 export let allAccounts = [];
 
@@ -22,12 +22,17 @@ export async function loadAccounts() {
 
 export function updateAccountsList(accounts) {
     const accountsList = document.getElementById('accountsList');
+    if (!accountsList) return;
+    
+    // Remove existing event listeners
+    const oldElement = accountsList.cloneNode(true);
+    accountsList.parentNode.replaceChild(oldElement, accountsList);
     
     // Add sorting options bar
     let html = `
         <div class="sorting-options">
             <label>Group by:</label>
-            <select id="accountSortOption" onchange="updateAccountsListSort()">
+            <select id="accountSortOption">
                 <option value="type">Account Type</option>
                 <option value="category">Category</option>
             </select>
@@ -35,7 +40,49 @@ export function updateAccountsList(accounts) {
     `;
 
     html += generateAccountsTable(accounts);
-    accountsList.innerHTML = html;
+    oldElement.innerHTML = html;
+
+    // Add event listeners using event delegation
+    oldElement.addEventListener('click', async (e) => {
+        const button = e.target.closest('button[data-action]');
+        if (button) {
+            const action = button.dataset.action;
+            const id = button.dataset.id;
+
+            if (action === 'edit') {
+                await handleEditAccount(id);
+            } else if (action === 'delete') {
+                await handleDeleteAccount(id);
+            }
+        }
+
+        // Handle category toggle
+        const categoryRow = e.target.closest('tr[data-action="toggle-category"]');
+        if (categoryRow) {
+            const categoryId = categoryRow.dataset.category;
+            const accountRows = document.querySelectorAll(`tr[data-category="${categoryId}"]`);
+            const icon = categoryRow.querySelector('.toggle-icon');
+            
+            accountRows.forEach(row => {
+                if (row !== categoryRow) {
+                    row.style.display = row.style.display === 'none' ? '' : 'none';
+                }
+            });
+            icon.textContent = icon.textContent === '▼' ? '▶' : '▼';
+        }
+    });
+
+    // Add change event listener for sort option
+    const sortSelect = oldElement.querySelector('#accountSortOption');
+    if (sortSelect) {
+        sortSelect.addEventListener('change', () => {
+            const tableHtml = generateAccountsTable(accounts);
+            const tableContainer = oldElement.querySelector('table')?.parentElement;
+            if (tableContainer) {
+                tableContainer.innerHTML = tableHtml;
+            }
+        });
+    }
 }
 
 function generateAccountsTable(accounts) {
@@ -115,7 +162,7 @@ function generateAccountsByCategory(accounts) {
 
 function generateAccountGroup(groupId, groupName, accounts) {
     return `
-        <tr class="category-row" onclick="toggleCategoryAccounts('${groupId}')">
+        <tr class="category-row" data-action="toggle-category" data-category="${groupId}">
             <td colspan="5">
                 <div class="category-header">
                     <span class="toggle-icon">▼</span>
@@ -132,8 +179,8 @@ function generateAccountGroup(groupId, groupName, accounts) {
                     <td>${account.type}</td>
                     <td>${account.description || ''}</td>
                     <td class="account-actions">
-                        <button onclick="editAccount('${account.id}')">Edit</button>
-                        <button onclick="deleteAccount('${account.id}')">Delete</button>
+                        <button class="edit-btn" data-action="edit" data-id="${account.id}">Edit</button>
+                        <button class="delete-btn" data-action="delete" data-id="${account.id}">Delete</button>
                     </td>
                 </tr>
             `).join('')}
@@ -199,15 +246,27 @@ export async function deleteAccount(id) {
             }
         });
         
+        const data = await response.json().catch(() => ({}));
+        
         if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.detail || 'Error deleting account');
+            let errorMessage;
+            
+            if (response.status === 404 || (data.detail && data.detail.type === 'not_found')) {
+                errorMessage = 'Account not found or already deleted';
+            } else if (data.detail && data.detail.message) {
+                errorMessage = data.detail.message;
+            } else if (data.detail) {
+                errorMessage = typeof data.detail === 'string' ? data.detail : JSON.stringify(data.detail);
+            } else {
+                errorMessage = 'Server error occurred while deleting account';
+            }
+            
+            throw new Error(errorMessage);
         }
         
-        await loadAccounts();
         return true;
     } catch (error) {
-        console.error('Error deleting account:', error);
+        console.error('Error in deleteAccount:', error);
         throw error;
     }
 }
@@ -222,5 +281,72 @@ export async function getAccountBalance(accountId) {
     } catch (error) {
         console.error('Error fetching account balance:', error);
         throw error;
+    }
+}
+
+async function handleEditAccount(id) {
+    const account = allAccounts.find(a => a.id === id);
+    if (!account) return;
+
+    const form = document.getElementById('accountForm');
+    const nameInput = document.getElementById('accountName');
+    const typeSelect = document.getElementById('accountType');
+    const categorySelect = document.getElementById('accountCategory');
+    const descInput = document.getElementById('accountDescription');
+    const submitButton = form.querySelector('button[type="submit"]');
+
+    if (form && nameInput && typeSelect && categorySelect && descInput && submitButton) {
+        nameInput.value = account.name;
+        typeSelect.value = account.type;
+        typeSelect.disabled = true;
+        descInput.value = account.description || '';
+        
+        // Enable category select
+        categorySelect.disabled = false;
+        
+        // Trigger category dropdown update
+        typeSelect.dispatchEvent(new Event('change'));
+        
+        // Set category after dropdown is updated
+        setTimeout(() => {
+            categorySelect.value = account.category_id || '';
+        }, 0);
+
+        // Update form for edit mode
+        form.dataset.editId = id;
+        submitButton.textContent = 'Update Account';
+    }
+}
+
+async function handleDeleteAccount(id) {
+    if (!confirm('Are you sure you want to delete this account?')) {
+        return;
+    }
+
+    try {
+        await deleteAccount(id);
+        alert('Account deleted successfully!');
+        
+        // Remove the account from allAccounts array
+        allAccounts = allAccounts.filter(account => account.id !== id);
+        
+        // Update the UI with the filtered accounts
+        const accountsList = document.getElementById('accountsList');
+        if (accountsList) {
+            updateAccountsList(allAccounts);
+        }
+    } catch (error) {
+        console.error('Error deleting account:', error);
+        if (error.message.includes('not found') || error.message.includes('already deleted')) {
+            alert('Account has already been deleted.');
+            // Refresh the accounts list from server
+            const response = await fetch(`${API_URL}/accounts/`);
+            if (response.ok) {
+                allAccounts = await response.json();
+                updateAccountsList(allAccounts);
+            }
+        } else {
+            alert('Error deleting account: ' + error.message);
+        }
     }
 } 

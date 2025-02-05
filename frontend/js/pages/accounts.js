@@ -1,4 +1,4 @@
-import { loadAccounts, createAccount } from '../modules/accounts.js';
+import { loadAccounts, createAccount, updateAccount } from '../modules/accounts.js';
 import { updateCategoryDropdown } from '../modules/categories.js';
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -25,12 +25,23 @@ document.addEventListener('DOMContentLoaded', async () => {
                         description: document.getElementById('accountDescription').value
                     };
                     
-                    await createAccount(accountData);
+                    const editId = accountForm.dataset.editId;
+                    if (editId) {
+                        await updateAccount(editId, accountData);
+                        alert('Account updated successfully!');
+                        accountForm.dataset.editId = ''; // Clear edit mode
+                        document.querySelector('button[type="submit"]').textContent = 'Create Account';
+                    } else {
+                        await createAccount(accountData);
+                        alert('Account created successfully!');
+                    }
+                    
                     accountForm.reset();
                     document.getElementById('accountCategory').disabled = true;
+                    document.getElementById('accountType').disabled = false;
                 } catch (error) {
-                    console.error('Error creating account:', error);
-                    alert('Error creating account: ' + error.message);
+                    console.error('Error handling account:', error);
+                    alert('Error: ' + error.message);
                 }
             });
         }
