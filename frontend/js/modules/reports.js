@@ -1,8 +1,12 @@
 import { API_URL, formatCurrency } from './config.js';
 
-export async function loadBalanceSheet() {
+export async function loadBalanceSheet(asOfDate = null) {
     try {
-        const response = await fetch(`${API_URL}/balance-sheet/`);
+        const url = asOfDate 
+            ? `${API_URL}/balance-sheet/?as_of=${asOfDate}`
+            : `${API_URL}/balance-sheet/`;
+            
+        const response = await fetch(url);
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
@@ -86,7 +90,7 @@ export async function loadBalanceSheet() {
 
 export async function loadIncomeStatement(startDate, endDate) {
     try {
-        const response = await fetch(`${API_URL}/income_statement/?start_date=${startDate}&end_date=${endDate}`);
+        const response = await fetch(`${API_URL}/income-statement/?start_date=${startDate}&end_date=${endDate}`);
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
@@ -100,14 +104,16 @@ export async function loadIncomeStatement(startDate, endDate) {
         html += '<table>';
         html += '<tbody>';
         data.income.forEach(item => {
+            // Only format if the amount exists and is a number
+            const amount = typeof item.amount === 'number' ? item.amount : null;
             html += `<tr>
                 <td>${item.name}</td>
-                <td class="text-right">${formatCurrency(item.amount)}</td>
+                <td class="text-right">${amount !== null ? formatCurrency(amount) : '—'}</td>
             </tr>`;
         });
         html += `<tr class="total-row">
             <td>Total Income</td>
-            <td class="text-right">${formatCurrency(data.total_income)}</td>
+            <td class="text-right">${typeof data.total_income === 'number' ? formatCurrency(data.total_income) : '—'}</td>
         </tr>`;
         html += '</tbody></table>';
         
@@ -116,14 +122,16 @@ export async function loadIncomeStatement(startDate, endDate) {
         html += '<table>';
         html += '<tbody>';
         data.expenses.forEach(item => {
+            // Only format if the amount exists and is a number
+            const amount = typeof item.amount === 'number' ? item.amount : null;
             html += `<tr>
                 <td>${item.name}</td>
-                <td class="text-right">${formatCurrency(item.amount)}</td>
+                <td class="text-right">${amount !== null ? formatCurrency(amount) : '—'}</td>
             </tr>`;
         });
         html += `<tr class="total-row">
             <td>Total Expenses</td>
-            <td class="text-right">${formatCurrency(data.total_expenses)}</td>
+            <td class="text-right">${typeof data.total_expenses === 'number' ? formatCurrency(data.total_expenses) : '—'}</td>
         </tr>`;
         html += '</tbody></table>';
         
@@ -132,7 +140,7 @@ export async function loadIncomeStatement(startDate, endDate) {
         html += '<tbody>';
         html += `<tr class="grand-total-row">
             <td>Net Income</td>
-            <td class="text-right">${formatCurrency(data.net_income)}</td>
+            <td class="text-right">${typeof data.net_income === 'number' ? formatCurrency(data.net_income) : '—'}</td>
         </tr>`;
         html += '</tbody></table>';
         

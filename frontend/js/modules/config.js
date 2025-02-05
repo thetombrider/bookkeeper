@@ -1,9 +1,16 @@
 export const API_URL = 'http://localhost:8000';
 
 export const formatCurrency = (amount) => {
+    // Only format if it's actually a number
+    if (typeof amount !== 'number' || isNaN(amount)) {
+        return '—';
+    }
+    
     return new Intl.NumberFormat('it-IT', {
         style: 'currency',
-        currency: 'EUR'
+        currency: 'EUR',
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
     }).format(amount);
 };
 

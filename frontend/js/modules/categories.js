@@ -7,31 +7,33 @@ export async function loadCategories() {
         const response = await fetch(`${API_URL}/account-categories/`);
         allCategories = await response.json();
         
-        // Update categories list with table view
+        // Update categories list if the element exists
         const categoriesList = document.getElementById('categoriesList');
-        categoriesList.innerHTML = `
-            <table>
-                <thead>
-                    <tr>
-                        <th>Name</th>
-                        <th>Description</th>
-                        <th>Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${allCategories.map(category => `
+        if (categoriesList) {
+            categoriesList.innerHTML = `
+                <table>
+                    <thead>
                         <tr>
-                            <td>${category.name}</td>
-                            <td>${category.description || ''}</td>
-                            <td>
-                                <button onclick="editCategory('${category.id}', '${category.name}', '${category.description || ''}')">Edit</button>
-                                <button onclick="deleteCategory('${category.id}')">Delete</button>
-                            </td>
+                            <th>Name</th>
+                            <th>Description</th>
+                            <th>Actions</th>
                         </tr>
-                    `).join('')}
-                </tbody>
-            </table>
-        `;
+                    </thead>
+                    <tbody>
+                        ${allCategories.map(category => `
+                            <tr>
+                                <td>${category.name}</td>
+                                <td>${category.description || ''}</td>
+                                <td>
+                                    <button onclick="editCategory('${category.id}', '${category.name}', '${category.description || ''}')">Edit</button>
+                                    <button onclick="deleteCategory('${category.id}')">Delete</button>
+                                </td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `;
+        }
         
         // Update category dropdown in accounts section if needed
         updateCategoryDropdown();
@@ -43,11 +45,18 @@ export async function loadCategories() {
 }
 
 export function updateCategoryDropdown() {
-    const accountType = document.getElementById('accountType').value;
+    const accountType = document.getElementById('accountType');
     const categorySelect = document.getElementById('accountCategory');
-    const isEditMode = document.getElementById('accountType').disabled;
     
-    if (!accountType && !isEditMode) {
+    // If either element doesn't exist, return early
+    if (!categorySelect) {
+        return;
+    }
+    
+    const isEditMode = accountType ? accountType.disabled : false;
+    const selectedType = accountType ? accountType.value : null;
+    
+    if (!selectedType && !isEditMode) {
         categorySelect.disabled = true;
         categorySelect.innerHTML = '<option value="">Select account type first</option>';
         return;

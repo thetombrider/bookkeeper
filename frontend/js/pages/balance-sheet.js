@@ -7,19 +7,26 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         // Set up event listener for refresh button
         const refreshBtn = document.querySelector('[data-action="refresh-balance-sheet"]');
+        const dateInput = document.getElementById('balanceSheetDate');
+
         if (refreshBtn) {
             refreshBtn.addEventListener('click', async () => {
-                const date = document.getElementById('balanceSheetDate').value;
+                const date = dateInput.value;
                 await loadBalanceSheet(date);
             });
         }
 
         // Set up event listener for date change
-        const dateInput = document.getElementById('balanceSheetDate');
         if (dateInput) {
             dateInput.addEventListener('change', async () => {
                 await loadBalanceSheet(dateInput.value);
             });
+
+            // Set default date to today if not set
+            if (!dateInput.value) {
+                dateInput.value = new Date().toISOString().split('T')[0];
+                await loadBalanceSheet(dateInput.value);
+            }
         }
     } catch (error) {
         console.error('Error initializing balance sheet:', error);
