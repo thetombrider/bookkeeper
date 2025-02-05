@@ -1553,6 +1553,7 @@ function generateBalanceSheetTable(accounts, balances) {
         equity: { title: 'Equity', accounts: [], total: 0 }
     };
 
+    // First pass: organize regular accounts
     accounts.forEach(account => {
         if (sections[account.type]) {
             const balance = Number(balances[account.id] || 0);
@@ -1566,27 +1567,95 @@ function generateBalanceSheetTable(accounts, balances) {
         }
     });
 
+    // Calculate net income (current year earnings)
+    const incomeAccounts = accounts.filter(a => a.type === 'income');
+    const expenseAccounts = accounts.filter(a => a.type === 'expense');
+    
+    let totalIncome = 0;
+    let totalExpenses = 0;
+    
+    incomeAccounts.forEach(account => {
+        totalIncome += Math.abs(Number(balances[account.id] || 0));
+    });
+    
+    expenseAccounts.forEach(account => {
+        totalExpenses += Math.abs(Number(balances[account.id] || 0));
+    });
+    
+    const netIncome = totalIncome - totalExpenses;
+
+    // Add net income to equity section
+    if (netIncome !== 0) {
+        sections.equity.accounts.push({
+            name: 'Utili di esercizio',
+            balance: Math.abs(netIncome)
+        });
+        sections.equity.total += Math.abs(netIncome);
+    }
+
+    // Generate HTML
     let html = '<div class="balance-sheet">';
     
-    // Assets column
+    // Assets Column
     html += '<div class="balance-sheet-column">';
-    html += generateSectionTable(sections.asset);
+    html += '<h3>Assets</h3>';
+    html += '<table>';
+    sections.asset.accounts.forEach(account => {
+        html += `<tr>
+            <td>${account.name}</td>
+            <td class="text-right">${formatCurrency(account.balance)} €</td>
+        </tr>`;
+    });
+    html += `<tr class="total-row">
+        <td>Total Assets</td>
+        <td class="text-right">${formatCurrency(sections.asset.total)} €</td>
+    </tr>`;
+    html += '</table>';
     html += '</div>';
     
-    // Liabilities + Equity column
+    // Liabilities and Equity Column
     html += '<div class="balance-sheet-column">';
-    html += generateSectionTable(sections.liability);
-    html += generateSectionTable(sections.equity);
+    
+    // Liabilities Section
+    html += '<h3>Liabilities</h3>';
+    html += '<table>';
+    sections.liability.accounts.forEach(account => {
+        html += `<tr>
+            <td>${account.name}</td>
+            <td class="text-right">${formatCurrency(account.balance)} €</td>
+        </tr>`;
+    });
+    html += `<tr class="total-row">
+        <td>Total Liabilities</td>
+        <td class="text-right">${formatCurrency(sections.liability.total)} €</td>
+    </tr>`;
+    html += '</table>';
+    
+    // Equity Section
+    html += '<h3>Equity</h3>';
+    html += '<table>';
+    sections.equity.accounts.forEach(account => {
+        html += `<tr>
+            <td>${account.name}</td>
+            <td class="text-right">${formatCurrency(account.balance)} €</td>
+        </tr>`;
+    });
+    html += `<tr class="total-row">
+        <td>Total Equity</td>
+        <td class="text-right">${formatCurrency(sections.equity.total)} €</td>
+    </tr>`;
     
     // Total Liabilities and Equity
-    const totalLiabilitiesEquity = sections.liability.total + sections.equity.total;
-    html += `<div class="grand-total-row">
-        <strong>Total Liabilities and Equity:</strong>
-        <span class="balance">${formatCurrency(totalLiabilitiesEquity)}</span>
-    </div>`;
-    html += '</div>';
+    const totalLiabilitiesAndEquity = sections.liability.total + sections.equity.total;
+    html += `<tr class="grand-total-row">
+        <td>Total Liabilities and Equity</td>
+        <td class="text-right">${formatCurrency(totalLiabilitiesAndEquity)} €</td>
+    </tr>`;
+    html += '</table>';
     
     html += '</div>';
+    html += '</div>';
+    
     return html;
 }
 
@@ -1637,26 +1706,6 @@ function generateIncomeStatementTable(data) {
     </div>`;
     
     html += '</div>';
-    return html;
-}
-
-// Helper function to generate a section table
-function generateSectionTable(section) {
-    let html = `<h3>${section.title}</h3><table>`;
-    
-    section.accounts.forEach(account => {
-        html += `<tr>
-            <td>${account.name}</td>
-            <td class="balance">${formatCurrency(account.balance)}</td>
-        </tr>`;
-    });
-    
-    html += `<tr class="total-row">
-        <td>Total ${section.title}</td>
-        <td class="balance">${formatCurrency(section.total)}</td>
-    </tr>`;
-    
-    html += '</table>';
     return html;
 }
 
