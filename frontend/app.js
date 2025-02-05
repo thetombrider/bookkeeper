@@ -32,7 +32,9 @@ function showSection(sectionId) {
     } else if (sectionId === 'accounts') {
         loadAccounts();
     } else if (sectionId === 'transactions') {
-        loadTransactions();
+        loadAccounts().then(() => {
+            loadTransactions();
+        });
     }
 }
 
@@ -601,7 +603,12 @@ async function loadTransactions() {
     }
 }
 
-function addJournalEntryRow() {
+async function addJournalEntryRow() {
+    // Ensure accounts are loaded
+    if (!allAccounts || allAccounts.length === 0) {
+        await loadAccounts();
+    }
+
     const entriesList = document.querySelector('.journal-entries-list');
     const newRow = document.createElement('div');
     newRow.className = 'journal-entry-row';
