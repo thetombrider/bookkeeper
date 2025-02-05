@@ -23,7 +23,8 @@ function showSection(sectionId) {
     });
     
     // Show the selected section
-    document.getElementById(sectionId).classList.remove('hidden');
+    const selectedSection = document.getElementById(sectionId);
+    selectedSection.classList.remove('hidden');
     
     // Load appropriate data based on the section
     switch(sectionId) {
@@ -32,10 +33,20 @@ function showSection(sectionId) {
             break;
         case 'categories':
             loadCategories();
+            // Re-attach event handlers for the category form
+            const categoryForm = document.getElementById('categoryForm');
+            if (categoryForm) {
+                categoryForm.onsubmit = createCategory;
+            }
             break;
         case 'accounts':
             loadCategories(); // Categories needed for account creation dropdown
             loadAccounts();
+            // Re-attach event handlers for the account form
+            const accountForm = document.getElementById('accountForm');
+            if (accountForm) {
+                accountForm.onsubmit = createAccount;
+            }
             break;
         case 'transactions':
             loadAccounts(); // Accounts needed for transaction entry dropdowns
@@ -66,7 +77,6 @@ async function loadCategories() {
                 <thead>
                     <tr>
                         <th>Name</th>
-                        <th>Type</th>
                         <th>Description</th>
                         <th>Actions</th>
                     </tr>
@@ -75,10 +85,9 @@ async function loadCategories() {
                     ${allCategories.map(category => `
                         <tr>
                             <td>${category.name}</td>
-                            <td>${category.account_type}</td>
                             <td>${category.description || ''}</td>
                             <td>
-                                <button onclick="editCategory('${category.id}', '${category.name}', '${category.description || ''}', '${category.account_type}')">Edit</button>
+                                <button onclick="editCategory('${category.id}', '${category.name}', '${category.description || ''}')">Edit</button>
                                 <button onclick="deleteCategory('${category.id}')">Delete</button>
                             </td>
                         </tr>
@@ -95,7 +104,7 @@ async function loadCategories() {
     }
 }
 
-// Add function to update category dropdown based on selected account type
+// Update category dropdown based on selected account type
 function updateCategoryDropdown() {
     const accountType = document.getElementById('accountType').value;
     const categorySelect = document.getElementById('accountCategory');
@@ -106,12 +115,10 @@ function updateCategoryDropdown() {
         return;
     }
     
-    // Filter categories by account type
-    const filteredCategories = allCategories.filter(category => category.account_type === accountType);
-    
+    // Show all categories regardless of type
     categorySelect.innerHTML = `
         <option value="">Select a category</option>
-        ${filteredCategories.map(category => `
+        ${allCategories.map(category => `
             <option value="${category.id}">${category.name}</option>
         `).join('')}
     `;
@@ -123,15 +130,27 @@ function updateCategoryDropdown() {
  * @param {Event} event - Form submission event
  */
 async function createCategory(event) {
+    console.log('createCategory function called');
     event.preventDefault();
     
+    const nameInput = document.getElementById('categoryName');
+    const descInput = document.getElementById('categoryDescription');
+    
+    if (!nameInput || !descInput) {
+        console.error('Category form elements not found');
+        alert('Error: Could not create category. Please try refreshing the page.');
+        return;
+    }
+    
     const categoryData = {
-        name: document.getElementById('categoryName').value,
-        description: document.getElementById('categoryDescription').value,
-        account_type: document.getElementById('categoryType').value
+        name: nameInput.value,
+        description: descInput.value
     };
     
+    console.log('Creating category with data:', categoryData);
+    
     try {
+        console.log('Sending POST request to:', `${API_URL}/account-categories/`);
         const response = await fetch(`${API_URL}/account-categories/`, {
             method: 'POST',
             headers: {
@@ -140,8 +159,13 @@ async function createCategory(event) {
             body: JSON.stringify(categoryData)
         });
         
+        console.log('Response status:', response.status);
+        
+        const responseData = await response.json();
+        console.log('Response data:', responseData);
+        
         if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
+            throw new Error(responseData.detail || 'Error creating category');
         }
         
         // Clear form and reload categories
@@ -151,7 +175,7 @@ async function createCategory(event) {
         alert('Category created successfully!');
     } catch (error) {
         console.error('Error creating category:', error);
-        alert('Error creating category. Please try again.');
+        alert('Error creating category: ' + error.message);
     }
 }
 
@@ -161,18 +185,41 @@ async function createCategory(event) {
  * @param {string} name - Category name
  * @param {string} description - Category description
  */
-function editCategory(id, name, description, accountType) {
+function editCategory(id, name, description) {
+    console.log('Edit category called:', { id, name, description });
+    
+    // Make sure categories section is visible
+    showSection('categories');
+    
+    // Get form elements
+    const nameInput = document.getElementById('categoryName');
+    const descInput = document.getElementById('categoryDescription');
+    const form = document.getElementById('categoryForm');
+    
+    console.log('Form elements:', { 
+        nameInput: nameInput ? 'found' : 'not found',
+        descInput: descInput ? 'found' : 'not found',
+        form: form ? 'found' : 'not found'
+    });
+    
+    if (!nameInput || !descInput || !form) {
+        console.error('Category form elements not found');
+        alert('Error: Could not edit category. Please try refreshing the page.');
+        return;
+    }
+    
     // Populate form with category data
-    document.getElementById('categoryName').value = name;
-    document.getElementById('categoryDescription').value = description;
-    document.getElementById('categoryType').value = accountType;
+    nameInput.value = name;
+    descInput.value = description || '';
     
     // Change form submit handler to update instead of create
-    const form = document.getElementById('categoryForm');
     form.onsubmit = (e) => updateCategory(e, id);
     
     // Update button text
-    form.querySelector('button[type="submit"]').textContent = 'Update Category';
+    const submitButton = form.querySelector('button[type="submit"]');
+    if (submitButton) {
+        submitButton.textContent = 'Update Category';
+    }
     
     // Add cancel button if not already present
     if (!document.getElementById('cancelEditCategory')) {
@@ -181,8 +228,10 @@ function editCategory(id, name, description, accountType) {
         cancelButton.type = 'button';
         cancelButton.textContent = 'Cancel';
         cancelButton.onclick = cancelEditCategory;
-        form.querySelector('button[type="submit"]').after(cancelButton);
+        submitButton.after(cancelButton);
     }
+    
+    console.log('Category edit form prepared successfully');
 }
 
 async function updateCategory(event, id) {
@@ -190,8 +239,7 @@ async function updateCategory(event, id) {
     
     const categoryData = {
         name: document.getElementById('categoryName').value,
-        description: document.getElementById('categoryDescription').value,
-        account_type: document.getElementById('categoryType').value
+        description: document.getElementById('categoryDescription').value
     };
     
     try {
@@ -286,6 +334,7 @@ async function loadAccounts() {
     try {
         const response = await fetch(`${API_URL}/accounts/`);
         const accounts = await response.json();
+        allAccounts = accounts; // Store for later use
         
         // Update accounts list
         const accountsList = document.getElementById('accountsList');
@@ -313,6 +362,9 @@ async function loadAccounts() {
                                 <button onclick="editAccount('${account.id}')">Edit</button>
                                 <button onclick="deleteAccount('${account.id}')">Delete</button>
                                 <button onclick="viewBalance('${account.id}')">Balance</button>
+                                ${(account.type === 'asset' || account.type === 'liability') ? 
+                                    `<button onclick="showOpeningBalanceDialog('${account.id}', '${account.name}')">Set Opening Balance</button>` 
+                                    : ''}
                             </td>
                         </tr>
                     `).join('')}
@@ -321,19 +373,24 @@ async function loadAccounts() {
         `;
         
         // Update account dropdowns in transactions section
-        const accountSelects = document.querySelectorAll('.journal-entry-account');
-        accountSelects.forEach(select => {
-            select.innerHTML = `
-                <option value="">Select an account</option>
-                ${accounts.map(account => `
-                    <option value="${account.id}">${account.code} - ${account.name}</option>
-                `).join('')}
-            `;
-        });
+        updateAccountDropdowns(accounts);
     } catch (error) {
         console.error('Error loading accounts:', error);
         alert('Error loading accounts. Please try again.');
     }
+}
+
+// Helper function to update account dropdowns
+function updateAccountDropdowns(accounts) {
+    const accountSelects = document.querySelectorAll('.journal-entry-account');
+    accountSelects.forEach(select => {
+        select.innerHTML = `
+            <option value="">Select an account</option>
+            ${accounts.map(account => `
+                <option value="${account.id}">${account.code} - ${account.name}</option>
+            `).join('')}
+        `;
+    });
 }
 
 async function createAccount(event) {
@@ -409,6 +466,9 @@ async function viewBalance(accountId) {
 
 async function editAccount(id) {
     try {
+        // Make sure accounts section is visible
+        showSection('accounts');
+        
         // Fetch account details
         const response = await fetch(`${API_URL}/accounts/${id}`);
         if (!response.ok) {
@@ -416,11 +476,21 @@ async function editAccount(id) {
         }
         const account = await response.json();
         
+        // Wait for categories to load
+        await loadCategories();
+        
+        // Enable category selection
+        const categorySelect = document.getElementById('accountCategory');
+        categorySelect.disabled = false;
+        
         // Populate form with account data
         document.getElementById('accountCategory').value = account.category_id || '';
         document.getElementById('accountName').value = account.name;
         document.getElementById('accountType').value = account.type;
         document.getElementById('accountDescription').value = account.description || '';
+        
+        // Disable account type change as it would invalidate the account code
+        document.getElementById('accountType').disabled = true;
         
         // Change form submit handler
         const form = document.getElementById('accountForm');
@@ -503,6 +573,9 @@ async function updateAccount(event, id) {
 function cancelEditAccount() {
     // Reset form
     document.getElementById('accountForm').reset();
+    
+    // Re-enable account type selection
+    document.getElementById('accountType').disabled = false;
     
     // Change form submit handler back to create
     document.getElementById('accountForm').onsubmit = createAccount;
@@ -984,41 +1057,333 @@ async function loadDashboard() {
         const balancesResponse = await fetch(`${API_URL}/accounts/balances/`);
         const balances = await balancesResponse.json();
         
-        // Create the HTML for the accounts table
-        const accountsTable = document.getElementById('accountsTable');
-        
-        // Filter and sort accounts
-        const displayAccounts = accounts
-            .filter(account => account.type === 'asset' || account.type === 'liability')
+        // Separate accounts by type
+        const assets = accounts.filter(account => account.type === 'asset')
+            .sort((a, b) => a.code.localeCompare(b.code));
+        const liabilities = accounts.filter(account => account.type === 'liability')
+            .sort((a, b) => a.code.localeCompare(b.code));
+        const equity = accounts.filter(account => account.type === 'equity')
+            .sort((a, b) => a.code.localeCompare(b.code));
+        const income = accounts.filter(account => account.type === 'income')
+            .sort((a, b) => a.code.localeCompare(b.code));
+        const expenses = accounts.filter(account => account.type === 'expense')
             .sort((a, b) => a.code.localeCompare(b.code));
         
-        // Create table HTML
-        let html = `
-            <table>
-                <thead>
-                    <tr>
-                        <th>Account</th>
-                        <th class="text-right">Balance</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${displayAccounts.map(account => {
-                        const balance = balances[account.id] || 0;
-                        return `
-                            <tr>
-                                <td>${account.name}</td>
-                                <td class="balance text-right">${formatCurrency(balance)}</td>
-                            </tr>
-                        `;
-                    }).join('')}
-                </tbody>
-            </table>
-        `;
+        // Calculate totals
+        const totalAssets = assets.reduce((sum, account) => {
+            const balance = Number(balances[account.id] || 0);
+            return sum + balance;
+        }, 0);
+
+        const totalLiabilities = liabilities.reduce((sum, account) => {
+            const balance = Number(balances[account.id] || 0);
+            return sum + Math.abs(balance);
+        }, 0);
+
+        // Calculate income and expenses
+        const totalIncome = income.reduce((sum, account) => {
+            const balance = Number(balances[account.id] || 0);
+            return sum + Math.abs(balance);
+        }, 0);
+
+        const totalExpenses = expenses.reduce((sum, account) => {
+            const balance = Number(balances[account.id] || 0);
+            return sum + Math.abs(balance);
+        }, 0);
+
+        // Calculate retained earnings (income - expenses)
+        const retainedEarnings = totalIncome - totalExpenses;
+
+        // Calculate total equity including retained earnings
+        const totalEquity = equity.reduce((sum, account) => {
+            const balance = Number(balances[account.id] || 0);
+            return sum + Math.abs(balance);
+        }, 0) + retainedEarnings;
         
-        accountsTable.innerHTML = html;
+        // Create the HTML for the balance sheet
+        const accountsTable = document.getElementById('accountsTable');
+        accountsTable.innerHTML = `
+            <div class="balance-sheet">
+                <div class="balance-sheet-column">
+                    <h3>Assets</h3>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Account</th>
+                                <th class="text-right">Balance</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${assets.map(account => {
+                                const balance = Number(balances[account.id] || 0);
+                                return `
+                                    <tr>
+                                        <td>${account.name}</td>
+                                        <td class="balance text-right">${formatCurrency(Math.abs(balance))}</td>
+                                    </tr>
+                                `;
+                            }).join('')}
+                            <tr class="total-row">
+                                <td><strong>Total Assets</strong></td>
+                                <td class="balance text-right"><strong>${formatCurrency(Math.abs(totalAssets))}</strong></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div class="balance-sheet-column">
+                    <h3>Liabilities</h3>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Account</th>
+                                <th class="text-right">Balance</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${liabilities.map(account => {
+                                const balance = Number(balances[account.id] || 0);
+                                return `
+                                    <tr>
+                                        <td>${account.name}</td>
+                                        <td class="balance text-right">${formatCurrency(Math.abs(balance))}</td>
+                                    </tr>
+                                `;
+                            }).join('')}
+                            <tr class="total-row">
+                                <td><strong>Total Liabilities</strong></td>
+                                <td class="balance text-right"><strong>${formatCurrency(totalLiabilities)}</strong></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    
+                    <h3>Equity</h3>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Account</th>
+                                <th class="text-right">Balance</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${equity.map(account => {
+                                const balance = Number(balances[account.id] || 0);
+                                return `
+                                    <tr>
+                                        <td>${account.name}</td>
+                                        <td class="balance text-right">${formatCurrency(Math.abs(balance))}</td>
+                                    </tr>
+                                `;
+                            }).join('')}
+                            <tr>
+                                <td>Retained Earnings (Income - Expenses)</td>
+                                <td class="balance text-right">${formatCurrency(retainedEarnings)}</td>
+                            </tr>
+                            <tr class="total-row">
+                                <td><strong>Total Equity</strong></td>
+                                <td class="balance text-right"><strong>${formatCurrency(totalEquity)}</strong></td>
+                            </tr>
+                            <tr class="grand-total-row">
+                                <td><strong>Total Liabilities & Equity</strong></td>
+                                <td class="balance text-right"><strong>${formatCurrency(totalLiabilities + totalEquity)}</strong></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        `;
+
+        // Verify accounting equation
+        const difference = Math.abs(Math.abs(totalAssets) - (totalLiabilities + totalEquity));
+        if (difference > 0.01) {  // Allow for small rounding differences
+            console.warn('Warning: Accounting equation is not balanced!', {
+                totalAssets: Math.abs(totalAssets),
+                totalLiabilities,
+                totalEquity,
+                difference
+            });
+        }
     } catch (error) {
         console.error('Error loading dashboard:', error);
         alert('Error loading dashboard. Please try again.');
+    }
+}
+
+/**
+ * Creates an opening balance transaction for an account
+ * @param {string} accountId - The account ID to set balance for
+ * @param {number} amount - The opening balance amount (positive for assets, negative for liabilities)
+ * @param {string} openingBalanceAccountId - The opening balance equity account ID
+ */
+async function createOpeningBalance(accountId, amount, openingBalanceAccountId) {
+    const transactionData = {
+        transaction_date: new Date().toISOString().split('T')[0],
+        description: 'Saldo di Apertura',
+        entries: []
+    };
+
+    // Get the account type
+    const account = allAccounts.find(acc => acc.id === accountId);
+    if (!account) {
+        throw new Error('Account not found');
+    }
+
+    // For assets: positive amount means debit (increase)
+    // For liabilities: positive amount means credit (increase)
+    if (account.type === 'asset') {
+        if (amount > 0) {
+            // Debit asset, credit opening balance equity
+            transactionData.entries = [
+                {
+                    account_id: accountId,
+                    debit_amount: amount,
+                    credit_amount: 0
+                },
+                {
+                    account_id: openingBalanceAccountId,
+                    debit_amount: 0,
+                    credit_amount: amount
+                }
+            ];
+        } else {
+            // Credit asset, debit opening balance equity (negative balance)
+            const absAmount = Math.abs(amount);
+            transactionData.entries = [
+                {
+                    account_id: accountId,
+                    debit_amount: 0,
+                    credit_amount: absAmount
+                },
+                {
+                    account_id: openingBalanceAccountId,
+                    debit_amount: absAmount,
+                    credit_amount: 0
+                }
+            ];
+        }
+    } else if (account.type === 'liability') {
+        if (amount > 0) {
+            // Credit liability, debit opening balance equity (positive balance = more liability)
+            transactionData.entries = [
+                {
+                    account_id: accountId,
+                    debit_amount: 0,
+                    credit_amount: amount
+                },
+                {
+                    account_id: openingBalanceAccountId,
+                    debit_amount: amount,
+                    credit_amount: 0
+                }
+            ];
+        } else {
+            // Debit liability, credit opening balance equity (negative balance = less liability)
+            const absAmount = Math.abs(amount);
+            transactionData.entries = [
+                {
+                    account_id: accountId,
+                    debit_amount: absAmount,
+                    credit_amount: 0
+                },
+                {
+                    account_id: openingBalanceAccountId,
+                    debit_amount: 0,
+                    credit_amount: absAmount
+                }
+            ];
+        }
+    }
+
+    try {
+        const response = await fetch(`${API_URL}/transactions/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(transactionData)
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.detail || 'Error creating opening balance');
+        }
+
+        return await response.json();
+    } catch (error) {
+        console.error('Error creating opening balance:', error);
+        throw error;
+    }
+}
+
+/**
+ * Shows the opening balance dialog for an account
+ * @param {string} accountId - The account ID to set balance for
+ * @param {string} accountName - The account name
+ */
+async function showOpeningBalanceDialog(accountId, accountName) {
+    const account = allAccounts.find(acc => acc.id === accountId);
+    if (!account) {
+        alert('Account not found');
+        return;
+    }
+
+    let message;
+    if (account.type === 'asset') {
+        message = `Enter opening balance for ${accountName}:\nPositive number for debit balance (normal)\nNegative number for credit balance`;
+    } else if (account.type === 'liability') {
+        message = `Enter opening balance for ${accountName}:\nPositive number for credit balance (normal)\nNegative number for debit balance`;
+    }
+    
+    const amount = prompt(message);
+    
+    if (amount === null) return; // User cancelled
+    
+    const numAmount = parseFloat(amount);
+    if (isNaN(numAmount)) {
+        alert('Please enter a valid number');
+        return;
+    }
+
+    try {
+        // First, check if we have an opening balance equity account
+        let openingBalanceAccount = allAccounts.find(
+            acc => acc.type === 'equity' && acc.name === 'Saldi di Apertura'
+        );
+
+        // If not, create it
+        if (!openingBalanceAccount) {
+            const response = await fetch(`${API_URL}/accounts/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    name: 'Saldi di Apertura',
+                    type: 'equity',
+                    description: 'Account for opening balances'
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to create opening balance account');
+            }
+
+            openingBalanceAccount = await response.json();
+        }
+
+        // Create the opening balance transaction
+        await createOpeningBalance(accountId, numAmount, openingBalanceAccount.id);
+        
+        alert('Opening balance set successfully!');
+        
+        // Refresh the accounts list and balances
+        await loadAccounts();
+        if (document.getElementById('dashboard').classList.contains('hidden') === false) {
+            await loadDashboard();
+        }
+    } catch (error) {
+        console.error('Error setting opening balance:', error);
+        alert('Error setting opening balance: ' + error.message);
     }
 }
 
@@ -1026,8 +1391,4 @@ async function loadDashboard() {
 document.addEventListener('DOMContentLoaded', () => {
     // Show dashboard section by default
     showSection('dashboard');
-    
-    // Add form submit handlers
-    document.getElementById('categoryForm').onsubmit = createCategory;
-    document.getElementById('accountForm').onsubmit = createAccount;
-}); 
+});

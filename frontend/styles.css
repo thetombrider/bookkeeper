@@ -101,7 +101,7 @@ textarea {
 }
 
 button {
-    background-color: #007bff;
+    background-color: #2baf3d;
     color: white;
     padding: 0.5rem 1rem;
     border: none;
@@ -111,7 +111,7 @@ button {
 }
 
 button:hover {
-    background-color: #0056b3;
+    background-color: #198310;
 }
 
 /* Lists */
@@ -180,7 +180,7 @@ th {
 
 /* Dashboard */
 .dashboard-container {
-    padding: 1rem;
+    padding: 0;
 }
 
 .accounts-overview {
@@ -255,4 +255,99 @@ th {
 
 .balance-zero {
     color: #757575;
+}
+
+/* Balance Sheet Styles */
+.balance-sheet {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 2rem;
+    background-color: white;
+    padding: 2rem;
+    margin: 0;
+    width: 100%;
+}
+
+.balance-sheet-column {
+    min-width: 0;
+    width: 100%;
+}
+
+.balance-sheet-column:first-child {
+    border-right: 1px solid #dee2e6;
+    padding-right: 2rem;
+}
+
+.balance-sheet-column:last-child {
+    padding-left: 2rem;
+}
+
+.balance-sheet table {
+    width: 100%;
+    margin-bottom: 2rem;
+    border-collapse: collapse;
+}
+
+.balance-sheet th,
+.balance-sheet td {
+    padding: 0.75rem;
+    border-bottom: 1px solid #dee2e6;
+}
+
+.balance-sheet th {
+    background-color: #f8f9fa;
+    font-weight: bold;
+    text-align: left;
+}
+
+.balance-sheet td {
+    text-align: left;
+}
+
+.balance-sheet .text-right {
+    text-align: right;
+}
+
+.balance-sheet .balance {
+    font-family: monospace;
+    white-space: nowrap;
+}
+
+.balance-sheet h3 {
+    color: #333;
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 2px solid #007bff;
+}
+
+.balance-sheet .total-row {
+    border-top: 2px solid #dee2e6;
+    background-color: #f8f9fa;
+    font-weight: bold;
+}
+
+.balance-sheet .grand-total-row {
+    border-top: 3px double #dee2e6;
+    background-color: #e9ecef;
+    font-weight: bold;
+}
+
+@media (max-width: 768px) {
+    .balance-sheet {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+        padding: 1rem;
+    }
+    
+    .balance-sheet-column:first-child {
+        border-right: none;
+        padding-right: 0;
+        border-bottom: 1px solid #dee2e6;
+        padding-bottom: 2rem;
+        margin-bottom: 2rem;
+    }
+    
+    .balance-sheet-column:last-child {
+        padding-left: 0;
+    }
 } 

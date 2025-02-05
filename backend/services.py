@@ -51,11 +51,18 @@ class BookkeepingService:
         Raises:
             SQLAlchemyError: If there's a database error
         """
-        db_category = models.AccountCategory(**category_data.model_dump())
-        self.db.add(db_category)
-        self.db.commit()
-        self.db.refresh(db_category)
-        return db_category
+        # Convert Pydantic model to dict and create SQLAlchemy model
+        category_dict = category_data.model_dump()
+        db_category = models.AccountCategory(**category_dict)
+        
+        try:
+            self.db.add(db_category)
+            self.db.commit()
+            self.db.refresh(db_category)
+            return db_category
+        except Exception as e:
+            self.db.rollback()
+            raise ValueError(f"Error creating category: {str(e)}")
 
     def update_account_category(self, category_id: str, category_data: models.AccountCategoryCreate) -> Optional[models.AccountCategory]:
         """
