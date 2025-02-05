@@ -346,7 +346,7 @@ th {
 /* Balance Sheet Styles */
 .balance-sheet {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-columns: 1fr 1fr;
     gap: 2rem;
     background-color: white;
     padding: 2rem;
@@ -356,7 +356,6 @@ th {
 
 .balance-sheet-column {
     min-width: 0;
-    width: 100%;
 }
 
 .balance-sheet-column:first-child {
@@ -426,7 +425,6 @@ th {
     .balance-sheet {
         grid-template-columns: 1fr;
         gap: 1rem;
-        padding: 1rem;
     }
     
     .balance-sheet-column:first-child {

@@ -2,70 +2,82 @@ import { API_URL, formatCurrency } from './config.js';
 
 export async function loadBalanceSheet() {
     try {
-        const response = await fetch(`${API_URL}/balance_sheet/`);
+        const response = await fetch(`${API_URL}/balance-sheet/`);
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
         const data = await response.json();
         
-        // Generate HTML for balance sheet
-        let html = '<div class="balance-sheet">';
+        // Generate HTML for balance sheet with two columns
+        let html = `
+            <div class="balance-sheet">
+                <div class="balance-sheet-column">
+                    <!-- Assets section -->
+                    <div class="statement-section">
+                        <h3>Assets</h3>
+                        <table>
+                            <tbody>
+                                ${data.assets.map(asset => `
+                                    <tr>
+                                        <td>${asset.name}</td>
+                                        <td class="text-right">${formatCurrency(asset.balance)}</td>
+                                    </tr>
+                                `).join('')}
+                                <tr class="total-row">
+                                    <td>Total Assets</td>
+                                    <td class="text-right">${formatCurrency(data.total_assets)}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="balance-sheet-column">
+                    <!-- Liabilities section -->
+                    <div class="statement-section">
+                        <h3>Liabilities</h3>
+                        <table>
+                            <tbody>
+                                ${data.liabilities.map(liability => `
+                                    <tr>
+                                        <td>${liability.name}</td>
+                                        <td class="text-right">${formatCurrency(liability.balance)}</td>
+                                    </tr>
+                                `).join('')}
+                                <tr class="total-row">
+                                    <td>Total Liabilities</td>
+                                    <td class="text-right">${formatCurrency(data.total_liabilities)}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Equity section -->
+                    <div class="statement-section">
+                        <h3>Equity</h3>
+                        <table>
+                            <tbody>
+                                ${data.equity.map(equity => `
+                                    <tr>
+                                        <td>${equity.name}</td>
+                                        <td class="text-right">${formatCurrency(equity.balance)}</td>
+                                    </tr>
+                                `).join('')}
+                                <tr class="total-row">
+                                    <td>Total Equity</td>
+                                    <td class="text-right">${formatCurrency(data.total_equity)}</td>
+                                </tr>
+                                <tr class="grand-total-row">
+                                    <td>Total Liabilities and Equity</td>
+                                    <td class="text-right">${formatCurrency(data.total_liabilities_and_equity)}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>`;
         
-        // Assets section
-        html += '<h3>Assets</h3>';
-        html += '<table>';
-        html += '<tbody>';
-        data.assets.forEach(asset => {
-            html += `<tr>
-                <td>${asset.name}</td>
-                <td class="text-right">${formatCurrency(asset.balance)}</td>
-            </tr>`;
-        });
-        html += `<tr class="total-row">
-            <td>Total Assets</td>
-            <td class="text-right">${formatCurrency(data.total_assets)}</td>
-        </tr>`;
-        html += '</tbody></table>';
-        
-        // Liabilities section
-        html += '<h3>Liabilities</h3>';
-        html += '<table>';
-        html += '<tbody>';
-        data.liabilities.forEach(liability => {
-            html += `<tr>
-                <td>${liability.name}</td>
-                <td class="text-right">${formatCurrency(liability.balance)}</td>
-            </tr>`;
-        });
-        html += `<tr class="total-row">
-            <td>Total Liabilities</td>
-            <td class="text-right">${formatCurrency(data.total_liabilities)}</td>
-        </tr>`;
-        html += '</tbody></table>';
-        
-        // Equity section
-        html += '<h3>Equity</h3>';
-        html += '<table>';
-        html += '<tbody>';
-        data.equity_details.forEach(equity => {
-            html += `<tr>
-                <td>${equity.name}</td>
-                <td class="text-right">${formatCurrency(equity.balance)}</td>
-            </tr>`;
-        });
-        html += `<tr class="total-row">
-            <td>Total Equity</td>
-            <td class="text-right">${formatCurrency(data.total_equity)}</td>
-        </tr>`;
-        html += `<tr class="grand-total-row">
-            <td>Total Liabilities and Equity</td>
-            <td class="text-right">${formatCurrency(data.total_liabilities_and_equity)}</td>
-        </tr>`;
-        html += '</tbody></table>';
-        
-        html += '</div>';
-        
-        document.getElementById('balanceSheet').innerHTML = html;
+        document.getElementById('accountsTable').innerHTML = html;
     } catch (error) {
         console.error('Error loading balance sheet:', error);
         alert('Error loading balance sheet. Please try again.');
