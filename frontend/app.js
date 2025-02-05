@@ -1562,23 +1562,14 @@ async function loadBalanceSheet() {
             </tr>`;
         });
 
-        // Add net income if it's not zero
-        if (data.net_income !== 0) {
-            html += `<tr>
-                <td>Utili di esercizio</td>
-                <td class="text-right">${formatCurrency(data.net_income)}</td>
-            </tr>`;
-        }
-
         html += `<tr class="total-row">
             <td>Total Equity</td>
             <td class="text-right">${formatCurrency(data.total_equity)}</td>
         </tr>`;
 
-        // Add Total Liabilities and Equity as the last row of the equity table
         html += `<tr class="grand-total-row">
             <td>Total Liabilities and Equity</td>
-            <td class="text-right">${formatCurrency(data.total_liabilities + data.total_equity)}</td>
+            <td class="text-right">${formatCurrency(data.total_liabilities_and_equity)}</td>
         </tr>`;
         html += '</table>';
         

@@ -157,6 +157,7 @@ class BalanceSheet(BaseModel):
     total_liabilities: Decimal
     total_equity: Decimal
     net_income: Decimal
+    total_liabilities_and_equity: Decimal
 
 class IncomeStatement(BaseModel):
     income: List[dict]

@@ -724,9 +724,16 @@ class BookkeepingService:
 
         net_income = total_income - total_expenses
 
-        # Add net income to total equity if it's not zero
+        # Add net income to equity section if it's not zero
         if net_income != 0:
+            equity_details.append({
+                'name': 'Utili di esercizio',
+                'balance': abs(net_income)
+            })
             total_equity += net_income
+
+        # Calculate total liabilities and equity
+        total_liabilities_and_equity = total_liabilities + total_equity
                 
         return models.BalanceSheet(
             assets=asset_details,
@@ -735,7 +742,8 @@ class BookkeepingService:
             total_assets=total_assets,
             total_liabilities=total_liabilities,
             total_equity=total_equity,
-            net_income=net_income
+            net_income=net_income,
+            total_liabilities_and_equity=total_liabilities_and_equity
         )
         
     def get_income_statement(self, start_date: date, end_date: date) -> models.IncomeStatement:
