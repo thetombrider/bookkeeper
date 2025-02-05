@@ -370,7 +370,7 @@ th {
 
 .balance-sheet table {
     width: 100%;
-    margin-bottom: 2rem;
+    margin-bottom: 1rem;
     border-collapse: collapse;
 }
 
@@ -404,6 +404,10 @@ th {
     margin-bottom: 1rem;
     padding-bottom: 0.5rem;
     border-bottom: 2px solid #007bff;
+}
+
+.balance-sheet h3:not(:first-child) {
+    margin-top: 2rem;
 }
 
 .balance-sheet .total-row {
