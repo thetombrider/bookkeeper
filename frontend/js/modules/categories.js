@@ -5,12 +5,19 @@ export let allCategories = [];
 export async function loadCategories() {
     try {
         const response = await fetch(`${API_URL}/account-categories/`);
+        if (!response.ok) {
+            throw new Error('Failed to load categories');
+        }
         allCategories = await response.json();
         
         // Update categories list if the element exists
         const categoriesList = document.getElementById('categoriesList');
         if (categoriesList) {
-            categoriesList.innerHTML = `
+            // Remove existing event listeners before updating innerHTML
+            const oldElement = categoriesList.cloneNode(true);
+            categoriesList.parentNode.replaceChild(oldElement, categoriesList);
+            
+            oldElement.innerHTML = `
                 <table>
                     <thead>
                         <tr>
@@ -25,12 +32,12 @@ export async function loadCategories() {
                                 <td>${category.name}</td>
                                 <td>${category.description || ''}</td>
                                 <td>
-                                    <button data-action="edit" data-id="${category.id}" 
+                                    <button class="edit-btn" data-action="edit" data-id="${category.id}" 
                                             data-name="${category.name}" 
                                             data-description="${category.description || ''}">
                                         Edit
                                     </button>
-                                    <button data-action="delete" data-id="${category.id}">
+                                    <button class="delete-btn" data-action="delete" data-id="${category.id}">
                                         Delete
                                     </button>
                                 </td>
@@ -40,26 +47,27 @@ export async function loadCategories() {
                 </table>
             `;
 
-            // Add event listeners for edit and delete buttons
-            categoriesList.querySelectorAll('button[data-action]').forEach(button => {
-                button.addEventListener('click', (e) => {
-                    const action = e.target.dataset.action;
-                    const id = e.target.dataset.id;
-                    
-                    if (action === 'edit') {
-                        const name = e.target.dataset.name;
-                        const description = e.target.dataset.description;
-                        handleEditCategory(id, name, description);
-                    } else if (action === 'delete') {
-                        handleDeleteCategory(id);
-                    }
-                });
+            // Add event listeners using event delegation
+            oldElement.addEventListener('click', async (e) => {
+                const button = e.target.closest('button[data-action]');
+                if (!button) return;
+
+                const action = button.dataset.action;
+                const id = button.dataset.id;
+                
+                if (action === 'edit') {
+                    const name = button.dataset.name;
+                    const description = button.dataset.description;
+                    handleEditCategory(id, name, description);
+                } else if (action === 'delete') {
+                    await handleDeleteCategory(id);
+                }
             });
         }
         
         // Update category dropdown in accounts section if needed
         updateCategoryDropdown();
-        return allCategories;
+        return true;
     } catch (error) {
         console.error('Error loading categories:', error);
         throw error;
@@ -88,11 +96,40 @@ function handleEditCategory(id, name, description) {
 }
 
 async function handleDeleteCategory(id) {
-    if (confirm('Are you sure you want to delete this category?')) {
-        try {
-            await deleteCategory(id);
-            await loadCategories();
-        } catch (error) {
+    if (!confirm('Are you sure you want to delete this category?')) {
+        return;
+    }
+
+    try {
+        await deleteCategory(id);
+        alert('Category deleted successfully!');
+        // Manually update the UI without triggering event listeners
+        const row = document.querySelector(`button[data-id="${id}"]`).closest('tr');
+        if (row) {
+            row.remove();
+        }
+        // Reload categories without triggering delete
+        const response = await fetch(`${API_URL}/account-categories/`);
+        if (response.ok) {
+            allCategories = await response.json();
+            updateCategoryDropdown();
+        }
+    } catch (error) {
+        console.error('Error deleting category:', error);
+        if (error.message.includes('not found')) {
+            alert('Category has already been deleted.');
+            // Manually update the UI without triggering event listeners
+            const row = document.querySelector(`button[data-id="${id}"]`)?.closest('tr');
+            if (row) {
+                row.remove();
+            }
+            // Update allCategories without triggering delete
+            const response = await fetch(`${API_URL}/account-categories/`);
+            if (response.ok) {
+                allCategories = await response.json();
+                updateCategoryDropdown();
+            }
+        } else {
             alert('Error deleting category: ' + error.message);
         }
     }
@@ -140,16 +177,14 @@ export async function createCategory(event) {
     
     try {
         if (editId) {
-            // Update existing category
             await updateCategory(editId, categoryData);
-            // Reset form state
             form.dataset.editId = '';
             const submitButton = form.querySelector('button[type="submit"]');
             if (submitButton) {
                 submitButton.textContent = 'Create Category';
             }
+            alert('Category updated successfully!');
         } else {
-            // Create new category
             const response = await fetch(`${API_URL}/account-categories/`, {
                 method: 'POST',
                 headers: {
@@ -162,12 +197,12 @@ export async function createCategory(event) {
                 const data = await response.json();
                 throw new Error(data.detail || 'Error creating category');
             }
+            alert('Category created successfully!');
         }
         
         // Clear form and reload categories
         form.reset();
         await loadCategories();
-        
         return true;
     } catch (error) {
         console.error('Error creating/updating category:', error);
@@ -193,22 +228,29 @@ async function updateCategory(id, categoryData) {
 }
 
 export async function deleteCategory(id) {
-    try {
-        const response = await fetch(`${API_URL}/account-categories/${id}`, {
-            method: 'DELETE',
-            headers: {
-                'Accept': 'application/json'
-            }
-        });
+    const response = await fetch(`${API_URL}/account-categories/${id}`, {
+        method: 'DELETE',
+        headers: {
+            'Accept': 'application/json'
+        }
+    });
+    
+    if (!response.ok) {
+        const data = await response.json();
+        let errorMessage;
         
-        if (!response.ok) {
-            const data = await response.json();
-            throw new Error(data.detail?.message || data.detail || 'Cannot delete this category.');
+        if (response.status === 404 || (data.detail && data.detail.message && data.detail.message.includes('not found'))) {
+            errorMessage = 'Category not found or already deleted';
+        } else if (data.detail && typeof data.detail === 'object' && data.detail.message) {
+            errorMessage = data.detail.message;
+        } else if (data.detail) {
+            errorMessage = data.detail;
+        } else {
+            errorMessage = 'Server error occurred while deleting category';
         }
         
-        return true;
-    } catch (error) {
-        console.error('Error deleting category:', error);
-        throw error;
+        throw new Error(errorMessage);
     }
+    
+    return true;
 } 

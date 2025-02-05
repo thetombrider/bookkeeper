@@ -12,10 +12,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                 event.preventDefault();
                 try {
                     await createCategory(event);
-                    categoryForm.reset();
                 } catch (error) {
-                    console.error('Error creating category:', error);
-                    alert('Error creating category: ' + error.message);
+                    console.error('Error handling category:', error);
+                    alert('Error: ' + error.message);
                 }
             });
         }

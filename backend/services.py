@@ -94,14 +94,15 @@ class BookkeepingService:
             category_id: ID of the category to delete
             
         Returns:
-            bool: True if deleted successfully, False if not found
+            bool: True if deleted successfully
             
         Raises:
             ValueError: If category has associated accounts, including details about the accounts
+            HTTPException: If category is not found
         """
         db_category = self.db.query(models.AccountCategory).filter(models.AccountCategory.id == category_id).first()
         if not db_category:
-            return False
+            raise ValueError(f"Account category with id {category_id} not found")
             
         # Check if category has any accounts and get their details
         if db_category.accounts:
