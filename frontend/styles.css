@@ -101,7 +101,7 @@ textarea {
 }
 
 button {
-    background-color: #2baf3d;
+    background-color: #333;
     color: white;
     padding: 0.5rem 1rem;
     border: none;
@@ -111,7 +111,7 @@ button {
 }
 
 button:hover {
-    background-color: #198310;
+    background-color: #252525;
 }
 
 /* Lists */
@@ -234,7 +234,7 @@ th {
 
 .refresh-btn {
     padding: 0.5rem 1rem;
-    background-color: #4CAF50;
+    background-color: #333;
     color: white;
     border: none;
     border-radius: 4px;
@@ -242,7 +242,7 @@ th {
 }
 
 .refresh-btn:hover {
-    background-color: #45a049;
+    background-color: #252525;
 }
 
 .balance-positive {
@@ -350,4 +350,129 @@ th {
     .balance-sheet-column:last-child {
         padding-left: 0;
     }
+}
+
+/* Account Actions */
+.account-actions {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.account-actions button {
+    padding: 0.4rem 1rem;
+    font-size: 0.9375rem;
+    white-space: nowrap;
+}
+
+/* Account Items */
+.account-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem;
+    border-bottom: 1px solid #ddd;
+}
+
+.account-item:last-child {
+    border-bottom: none;
+}
+
+.account-info {
+    flex: 1;
+    font-size: 1 rem;
+}
+
+.account-info strong {
+    display: block;
+    margin-bottom: 0.25rem;
+    font-weight: normal;
+}
+
+.account-info p {
+    margin: 0;
+    color: #666;
+    font-size: 0.875rem;
+}
+
+/* Income Statement Styles */
+.income-statement {
+    background-color: white;
+    padding: 2rem;
+    margin: 0;
+    width: 100%;
+}
+
+.statement-section {
+    margin-bottom: 2rem;
+}
+
+.statement-section h3 {
+    color: #333;
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 2px solid #007bff;
+}
+
+.statement-section table {
+    width: 100%;
+    margin-bottom: 1rem;
+}
+
+.statement-section td {
+    padding: 0.75rem;
+    border-bottom: 1px solid #dee2e6;
+}
+
+.statement-section td.balance {
+    text-align: right;
+    font-family: monospace;
+    white-space: nowrap;
+}
+
+.statement-section .total-row {
+    border-top: 2px solid #dee2e6;
+    background-color: #f8f9fa;
+    font-weight: bold;
+}
+
+.net-income {
+    margin-top: 2rem;
+    padding: 1rem;
+    background-color: #f8f9fa;
+    border-radius: 4px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 1.2rem;
+}
+
+.net-income .balance {
+    font-family: monospace;
+    font-weight: bold;
+}
+
+/* Filter Controls */
+.filter-controls {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+    align-items: center;
+    background-color: #f8f9fa;
+    padding: 1rem;
+    border-radius: 4px;
+}
+
+.filter-controls label {
+    margin: 0;
+    white-space: nowrap;
+}
+
+.filter-controls input[type="date"] {
+    width: auto;
+    margin: 0;
+}
+
+.refresh-btn {
+    margin-left: auto;
 } 

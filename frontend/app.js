@@ -17,41 +17,22 @@ let allCategories = [];
  * @param {string} sectionId - ID of the section to show ('categories', 'accounts', 'transactions', 'reports')
  */
 function showSection(sectionId) {
-    // Hide all sections first
     document.querySelectorAll('.section').forEach(section => {
         section.classList.add('hidden');
     });
-    
-    // Show the selected section
-    const selectedSection = document.getElementById(sectionId);
-    selectedSection.classList.remove('hidden');
-    
-    // Load appropriate data based on the section
-    switch(sectionId) {
-        case 'dashboard':
-            loadDashboard();
-            break;
-        case 'categories':
-            loadCategories();
-            // Re-attach event handlers for the category form
-            const categoryForm = document.getElementById('categoryForm');
-            if (categoryForm) {
-                categoryForm.onsubmit = createCategory;
-            }
-            break;
-        case 'accounts':
-            loadCategories(); // Categories needed for account creation dropdown
-            loadAccounts();
-            // Re-attach event handlers for the account form
-            const accountForm = document.getElementById('accountForm');
-            if (accountForm) {
-                accountForm.onsubmit = createAccount;
-            }
-            break;
-        case 'transactions':
-            loadAccounts(); // Accounts needed for transaction entry dropdowns
-            loadTransactions();
-            break;
+    document.getElementById(sectionId).classList.remove('hidden');
+
+    // Load data for the selected section
+    if (sectionId === 'balance-sheet') {
+        loadBalanceSheet();
+    } else if (sectionId === 'income-statement') {
+        loadIncomeStatement();
+    } else if (sectionId === 'categories') {
+        loadCategories();
+    } else if (sectionId === 'accounts') {
+        loadAccounts();
+    } else if (sectionId === 'transactions') {
+        loadTransactions();
     }
 }
 
@@ -338,60 +319,28 @@ async function loadAccounts() {
         allAccounts = accounts; // Store for later use
         
         // Update accounts list
-        const accountsList = document.getElementById('accountsList');
-        accountsList.innerHTML = `
-            <table>
-                <thead>
-                    <tr>
-                        <th>Code</th>
-                        <th>Name</th>
-                        <th>Type</th>
-                        <th>Category</th>
-                        <th>Description</th>
-                        <th>Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${accounts.map(account => `
-                        <tr>
-                            <td>${account.code}</td>
-                            <td>${account.name}</td>
-                            <td>${account.type}</td>
-                            <td>${account.category ? account.category.name : 'Uncategorized'}</td>
-                            <td>${account.description || ''}</td>
-                            <td>
-                                <button onclick="editAccount('${account.id}')">Edit</button>
-                                <button onclick="deleteAccount('${account.id}')">Delete</button>
-                                <button onclick="viewBalance('${account.id}')">Balance</button>
-                                ${(account.type === 'asset' || account.type === 'liability') ? 
-                                    `<button onclick="showOpeningBalanceDialog('${account.id}', '${account.name}')">Set Opening Balance</button>` 
-                                    : ''}
-                            </td>
-                        </tr>
-                    `).join('')}
-                </tbody>
-            </table>
-        `;
-        
-        // Update account dropdowns in transactions section
-        updateAccountDropdowns(accounts);
+        updateAccountsList(accounts);
     } catch (error) {
         console.error('Error loading accounts:', error);
         alert('Error loading accounts. Please try again.');
     }
 }
 
-// Helper function to update account dropdowns
-function updateAccountDropdowns(accounts) {
-    const accountSelects = document.querySelectorAll('.journal-entry-account');
-    accountSelects.forEach(select => {
-        select.innerHTML = `
-            <option value="">Select an account</option>
-            ${accounts.map(account => `
-                <option value="${account.id}">${account.code} - ${account.name}</option>
-            `).join('')}
-        `;
-    });
+function updateAccountsList(accounts) {
+    const accountsList = document.getElementById('accountsList');
+    accountsList.innerHTML = accounts.map(account => `
+        <div class="account-item">
+            <div class="account-info">
+                <strong>${account.code} - ${account.name}</strong>
+                ${account.description ? `<p>${account.description}</p>` : ''}
+            </div>
+            <div class="account-actions">
+                <button onclick="editAccount('${account.id}')">Edit</button>
+                <button onclick="deleteAccount('${account.id}')">Delete</button>
+                <button onclick="showOpeningBalanceDialog('${account.id}', '${account.name}')">Set Opening Balance</button>
+            </div>
+        </div>
+    `).join('');
 }
 
 async function createAccount(event) {
@@ -514,6 +463,16 @@ async function editAccount(id) {
     }
 }
 
+// Add force reload utility function
+async function forceReload() {
+    // Clear any cached data
+    allAccounts = [];
+    allCategories = [];
+    
+    // Force browser to reload page without cache
+    window.location.reload(true);
+}
+
 async function updateAccount(event, id) {
     event.preventDefault();
     
@@ -535,38 +494,21 @@ async function updateAccount(event, id) {
             body: JSON.stringify(accountData)
         });
         
-        const text = await response.text();
-        console.log('Raw response:', text);
-        
-        let data = {};
-        try {
-            data = JSON.parse(text);
-            console.log('Parsed data:', data);
-        } catch (e) {
-            console.log('Failed to parse JSON:', e);
-        }
-        
         if (!response.ok) {
-            let errorMessage = 'Error updating account.';
-            
-            if (data && data.detail) {
-                errorMessage = data.detail.message || data.detail || 'Cannot update account.';
-            }
-            
-            alert(errorMessage);
-            return;
+            const errorData = await response.json();
+            throw new Error(errorData.detail || 'Error updating account');
         }
         
         // Reset form to create mode
         cancelEditAccount();
         
-        // Reload accounts
-        loadAccounts();
+        // Force reload to clear cache
+        forceReload();
         
         alert('Account updated successfully!');
     } catch (error) {
-        console.error('Network or parsing error:', error);
-        alert('Error updating account. Please check the console for details.');
+        console.error('Error updating account:', error);
+        alert('Error updating account: ' + error.message);
     }
 }
 
@@ -603,34 +545,18 @@ async function deleteAccount(id) {
             }
         });
         
-        const text = await response.text();
-        console.log('Raw response:', text);
-        
-        let data = {};
-        try {
-            data = JSON.parse(text);
-            console.log('Parsed data:', data);
-        } catch (e) {
-            console.log('Failed to parse JSON:', e);
-        }
-        
         if (!response.ok) {
-            let errorMessage = 'Error deleting account.';
-            
-            if (data && data.detail) {
-                errorMessage = data.detail.message || data.detail || 'Cannot delete this account.';
-            }
-            
-            alert(errorMessage);
-            return;
+            const errorData = await response.json();
+            throw new Error(errorData.detail || 'Error deleting account');
         }
         
-        // Reload accounts
-        loadAccounts();
-        alert(data.message || 'Account deleted successfully!');
+        // Force reload to clear cache
+        forceReload();
+        
+        alert('Account deleted successfully!');
     } catch (error) {
-        console.error('Network or parsing error:', error);
-        alert('Error deleting account. Please check the console for details.');
+        console.error('Error deleting account:', error);
+        alert('Error deleting account: ' + error.message);
     }
 }
 
@@ -1537,15 +1463,176 @@ async function showOpeningBalanceDialog(accountId, accountName) {
         
         alert('Opening balance set successfully!');
         
-        // Refresh the accounts list and balances
-        await loadAccounts();
-        if (document.getElementById('dashboard').classList.contains('hidden') === false) {
-            await loadDashboard();
-        }
+        // Force reload to clear cache
+        forceReload();
     } catch (error) {
         console.error('Error setting opening balance:', error);
         alert('Error setting opening balance: ' + error.message);
     }
+}
+
+// Function to load balance sheet
+async function loadBalanceSheet() {
+    try {
+        const dateInput = document.getElementById('balanceSheetDate');
+        const asOfDate = dateInput.value || new Date().toISOString().split('T')[0];
+        dateInput.value = asOfDate;
+
+        const response = await fetch(`${API_URL}/accounts/`);
+        const accounts = await response.json();
+
+        const balancesResponse = await fetch(`${API_URL}/accounts/balances/?as_of=${asOfDate}`);
+        const balances = await balancesResponse.json();
+
+        const tableHtml = generateBalanceSheetTable(accounts, balances);
+        document.getElementById('accountsTable').innerHTML = tableHtml;
+    } catch (error) {
+        console.error('Error loading balance sheet:', error);
+        alert('Error loading balance sheet. Please try again.');
+    }
+}
+
+// Function to load income statement
+async function loadIncomeStatement() {
+    try {
+        const startDate = document.getElementById('incomeStartDate').value;
+        const endDate = document.getElementById('incomeEndDate').value;
+
+        if (!startDate || !endDate) {
+            // Set default dates if not selected (current month)
+            const today = new Date();
+            const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+            const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+
+            document.getElementById('incomeStartDate').value = firstDay.toISOString().split('T')[0];
+            document.getElementById('incomeEndDate').value = lastDay.toISOString().split('T')[0];
+            return loadIncomeStatement(); // Retry with default dates
+        }
+
+        const response = await fetch(`${API_URL}/income-statement/?start_date=${startDate}&end_date=${endDate}`);
+        const data = await response.json();
+
+        const tableHtml = generateIncomeStatementTable(data);
+        document.getElementById('incomeStatementTable').innerHTML = tableHtml;
+    } catch (error) {
+        console.error('Error loading income statement:', error);
+        alert('Error loading income statement. Please try again.');
+    }
+}
+
+// Helper function to generate balance sheet table HTML
+function generateBalanceSheetTable(accounts, balances) {
+    const sections = {
+        asset: { title: 'Assets', accounts: [], total: 0 },
+        liability: { title: 'Liabilities', accounts: [], total: 0 },
+        equity: { title: 'Equity', accounts: [], total: 0 }
+    };
+
+    accounts.forEach(account => {
+        if (sections[account.type]) {
+            const balance = Number(balances[account.id] || 0);
+            // For all accounts, use absolute values and handle signs consistently
+            const displayBalance = Math.abs(balance);
+            sections[account.type].accounts.push({
+                ...account,
+                balance: displayBalance
+            });
+            sections[account.type].total += displayBalance;
+        }
+    });
+
+    let html = '<div class="balance-sheet">';
+    
+    // Assets column
+    html += '<div class="balance-sheet-column">';
+    html += generateSectionTable(sections.asset);
+    html += '</div>';
+    
+    // Liabilities + Equity column
+    html += '<div class="balance-sheet-column">';
+    html += generateSectionTable(sections.liability);
+    html += generateSectionTable(sections.equity);
+    
+    // Total Liabilities and Equity
+    const totalLiabilitiesEquity = sections.liability.total + sections.equity.total;
+    html += `<div class="grand-total-row">
+        <strong>Total Liabilities and Equity:</strong>
+        <span class="balance">${formatCurrency(totalLiabilitiesEquity)}</span>
+    </div>`;
+    html += '</div>';
+    
+    html += '</div>';
+    return html;
+}
+
+// Helper function to generate income statement table HTML
+function generateIncomeStatementTable(data) {
+    let html = '<div class="income-statement">';
+    
+    // Income section
+    html += '<div class="statement-section">';
+    html += '<h3>Income</h3>';
+    html += '<table>';
+    data.income.forEach(item => {
+        html += `<tr>
+            <td>${item.name}</td>
+            <td class="balance">${formatCurrency(item.balance)}</td>
+        </tr>`;
+    });
+    html += `<tr class="total-row">
+        <td>Total Income</td>
+        <td class="balance">${formatCurrency(data.total_income)}</td>
+    </tr>`;
+    html += '</table>';
+    html += '</div>';
+    
+    // Expenses section
+    html += '<div class="statement-section">';
+    html += '<h3>Expenses</h3>';
+    html += '<table>';
+    data.expenses.forEach(item => {
+        html += `<tr>
+            <td>${item.name}</td>
+            <td class="balance">${formatCurrency(item.balance)}</td>
+        </tr>`;
+    });
+    html += `<tr class="total-row">
+        <td>Total Expenses</td>
+        <td class="balance">${formatCurrency(data.total_expenses)}</td>
+    </tr>`;
+    html += '</table>';
+    html += '</div>';
+    
+    // Net Income
+    html += `<div class="net-income">
+        <strong>Net Income:</strong>
+        <span class="balance ${data.net_income >= 0 ? 'balance-positive' : 'balance-negative'}">
+            ${formatCurrency(data.net_income)}
+        </span>
+    </div>`;
+    
+    html += '</div>';
+    return html;
+}
+
+// Helper function to generate a section table
+function generateSectionTable(section) {
+    let html = `<h3>${section.title}</h3><table>`;
+    
+    section.accounts.forEach(account => {
+        html += `<tr>
+            <td>${account.name}</td>
+            <td class="balance">${formatCurrency(account.balance)}</td>
+        </tr>`;
+    });
+    
+    html += `<tr class="total-row">
+        <td>Total ${section.title}</td>
+        <td class="balance">${formatCurrency(section.total)}</td>
+    </tr>`;
+    
+    html += '</table>';
+    return html;
 }
 
 // Initialize the application when the DOM is loaded
