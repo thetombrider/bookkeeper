@@ -672,57 +672,61 @@ class BookkeepingService:
     def get_balance_sheet(self, as_of: Optional[date] = None) -> models.BalanceSheet:
         """
         Generate a balance sheet report.
-        
-        Args:
-            as_of: Optional date for point-in-time balance sheet
-            
-        Returns:
-            BalanceSheet: Balance sheet report containing:
-            - List of assets with balances
-            - List of liabilities with balances
-            - List of equity accounts with balances
-            - Total assets
-            - Total liabilities
-            - Total equity
         """
         # Get all accounts grouped by type
         assets = self.db.query(models.Account).filter(models.Account.type == models.AccountType.ASSET).all()
         liabilities = self.db.query(models.Account).filter(models.Account.type == models.AccountType.LIABILITY).all()
         equity = self.db.query(models.Account).filter(models.Account.type == models.AccountType.EQUITY).all()
+        income_accounts = self.db.query(models.Account).filter(models.Account.type == models.AccountType.INCOME).all()
+        expense_accounts = self.db.query(models.Account).filter(models.Account.type == models.AccountType.EXPENSE).all()
         
         # Calculate balances
         asset_details = []
         total_assets = Decimal('0.00')
         for account in assets:
             balance = self.get_account_balance(account.id, as_of)
-            if balance != 0:
-                asset_details.append({
-                    'name': account.name,
-                    'balance': balance
-                })
-                total_assets += balance
+            asset_details.append({
+                'name': account.name,
+                'balance': abs(balance)  # Assets have debit balances (positive)
+            })
+            total_assets += balance
                 
         liability_details = []
         total_liabilities = Decimal('0.00')
         for account in liabilities:
             balance = self.get_account_balance(account.id, as_of)
-            if balance != 0:
-                liability_details.append({
-                    'name': account.name,
-                    'balance': -balance  # Liabilities are normally credit balances
-                })
-                total_liabilities += -balance
+            liability_details.append({
+                'name': account.name,
+                'balance': abs(balance)  # Liabilities have credit balances (negative)
+            })
+            total_liabilities += -balance  # Convert to positive for display
                 
         equity_details = []
         total_equity = Decimal('0.00')
         for account in equity:
             balance = self.get_account_balance(account.id, as_of)
-            if balance != 0:
-                equity_details.append({
-                    'name': account.name,
-                    'balance': -balance  # Equity accounts are normally credit balances
-                })
-                total_equity += -balance
+            equity_details.append({
+                'name': account.name,
+                'balance': abs(balance)  # Equity accounts have credit balances (negative)
+            })
+            total_equity += -balance  # Convert to positive for display
+
+        # Calculate net income
+        total_income = Decimal('0.00')
+        for account in income_accounts:
+            balance = self.get_account_balance(account.id, as_of)
+            total_income += -balance  # Income accounts have credit balances (negative)
+
+        total_expenses = Decimal('0.00')
+        for account in expense_accounts:
+            balance = self.get_account_balance(account.id, as_of)
+            total_expenses += balance  # Expense accounts have debit balances (positive)
+
+        net_income = total_income - total_expenses
+
+        # Add net income to total equity if it's not zero
+        if net_income != 0:
+            total_equity += net_income
                 
         return models.BalanceSheet(
             assets=asset_details,
@@ -730,7 +734,8 @@ class BookkeepingService:
             equity=equity_details,
             total_assets=total_assets,
             total_liabilities=total_liabilities,
-            total_equity=total_equity
+            total_equity=total_equity,
+            net_income=net_income
         )
         
     def get_income_statement(self, start_date: date, end_date: date) -> models.IncomeStatement:

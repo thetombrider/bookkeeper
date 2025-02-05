@@ -1313,524 +1313,135 @@ async function loadDashboard() {
         const balancesResponse = await fetch(`${API_URL}/accounts/balances/`);
         const balances = await balancesResponse.json();
         
-        // Separate accounts by type
-        const assets = accounts.filter(account => account.type === 'asset')
-            .sort((a, b) => a.code.localeCompare(b.code));
-        const liabilities = accounts.filter(account => account.type === 'liability')
-            .sort((a, b) => a.code.localeCompare(b.code));
-        const equity = accounts.filter(account => account.type === 'equity')
-            .sort((a, b) => a.code.localeCompare(b.code));
-        const income = accounts.filter(account => account.type === 'income')
-            .sort((a, b) => a.code.localeCompare(b.code));
-        const expenses = accounts.filter(account => account.type === 'expense')
-            .sort((a, b) => a.code.localeCompare(b.code));
+        // Initialize sections
+        const sections = {
+            asset: { title: 'Assets', accounts: [], total: 0 },
+            liability: { title: 'Liabilities', accounts: [], total: 0 },
+            equity: { title: 'Equity', accounts: [], total: 0 }
+        };
         
-        // Calculate totals
-        const totalAssets = assets.reduce((sum, account) => {
-            const balance = Number(balances[account.id] || 0);
-            return sum + balance;
-        }, 0);
-
-        const totalLiabilities = liabilities.reduce((sum, account) => {
-            const balance = Number(balances[account.id] || 0);
-            return sum + Math.abs(balance);
-        }, 0);
-
-        // Calculate current period's income and expenses
-        const totalIncome = income.reduce((sum, account) => {
-            const balance = Number(balances[account.id] || 0);
-            return sum + Math.abs(balance);
-        }, 0);
-
-        const totalExpenses = expenses.reduce((sum, account) => {
-            const balance = Number(balances[account.id] || 0);
-            return sum + Math.abs(balance);
-        }, 0);
-
-        // Find Retained Earnings account if it exists
-        const retainedEarningsAccount = equity.find(account => account.name === 'Utili Portati a Nuovo');
-        const previousRetainedEarnings = retainedEarningsAccount ? 
-            Math.abs(Number(balances[retainedEarningsAccount.id] || 0)) : 0;
-
-        // Current period's net income/loss
-        const currentPeriodEarnings = totalIncome - totalExpenses;
-
-        // Total equity is sum of:
-        // 1. Regular equity accounts (excluding Retained Earnings)
-        // 2. Previously closed Retained Earnings (if any)
-        // 3. Current period's earnings
-        const regularEquity = equity.reduce((sum, account) => {
-            if (account.name !== 'Utili Portati a Nuovo') {
+        // First pass: organize regular accounts
+        accounts.forEach(account => {
+            if (sections[account.type]) {
                 const balance = Number(balances[account.id] || 0);
-                return sum + Math.abs(balance);
+                // For all accounts, use absolute values and handle signs consistently
+                const displayBalance = Math.abs(balance);
+                sections[account.type].accounts.push({
+                    ...account,
+                    balance: displayBalance
+                });
+                sections[account.type].total += displayBalance;
             }
-            return sum;
-        }, 0);
+        });
 
-        const totalEquity = regularEquity + previousRetainedEarnings + currentPeriodEarnings;
+        // Calculate net income (current year earnings)
+        const incomeAccounts = accounts.filter(a => a.type === 'income');
+        const expenseAccounts = accounts.filter(a => a.type === 'expense');
         
-        // Create the HTML for the balance sheet
-        const accountsTable = document.getElementById('accountsTable');
-        accountsTable.innerHTML = `
-            <div class="balance-sheet">
-                <div class="balance-sheet-column">
-                    <h3>Assets</h3>
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Account</th>
-                                <th class="text-right">Balance</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${assets.map(account => {
-                                const balance = Number(balances[account.id] || 0);
-                                return `
-                                    <tr>
-                                        <td>${account.name}</td>
-                                        <td class="balance text-right">${formatCurrency(Math.abs(balance))}</td>
-                                    </tr>
-                                `;
-                            }).join('')}
-                            <tr class="total-row">
-                                <td><strong>Total Assets</strong></td>
-                                <td class="balance text-right"><strong>${formatCurrency(Math.abs(totalAssets))}</strong></td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-                
-                <div class="balance-sheet-column">
-                    <h3>Liabilities</h3>
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Account</th>
-                                <th class="text-right">Balance</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${liabilities.map(account => {
-                                const balance = Number(balances[account.id] || 0);
-                                return `
-                                    <tr>
-                                        <td>${account.name}</td>
-                                        <td class="balance text-right">${formatCurrency(Math.abs(balance))}</td>
-                                    </tr>
-                                `;
-                            }).join('')}
-                            <tr class="total-row">
-                                <td><strong>Total Liabilities</strong></td>
-                                <td class="text-right">${formatCurrency(totalLiabilities)}</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                    
-                    <h3>Equity</h3>
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Account</th>
-                                <th class="text-right">Balance</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${equity.filter(account => account.name !== 'Utili Portati a Nuovo').map(account => {
-                                const balance = Number(balances[account.id] || 0);
-                                return `
-                                    <tr>
-                                        <td>${account.name}</td>
-                                        <td class="balance text-right">${formatCurrency(Math.abs(balance))}</td>
-                                    </tr>
-                                `;
-                            }).join('')}
-                            ${retainedEarningsAccount ? `
-                                <tr>
-                                    <td>Utili Esercizi Precedenti</td>
-                                    <td class="balance text-right">${formatCurrency(previousRetainedEarnings)}</td>
-                                </tr>
-                            ` : ''}
-                            <tr>
-                                <td>Utile (Perdita) d'Esercizio</td>
-                                <td class="balance text-right">${formatCurrency(currentPeriodEarnings)}</td>
-                            </tr>
-                            <tr class="total-row">
-                                <td><strong>Total Equity</strong></td>
-                                <td class="balance text-right"><strong>${formatCurrency(totalEquity)}</strong></td>
-                            </tr>
-                            <tr class="grand-total-row">
-                                <td><strong>Total Liabilities & Equity</strong></td>
-                                <td class="balance text-right"><strong>${formatCurrency(totalLiabilities + totalEquity)}</strong></td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        `;
+        let totalIncome = 0;
+        let totalExpenses = 0;
+        
+        incomeAccounts.forEach(account => {
+            const balance = Number(balances[account.id] || 0);
+            // Income accounts have credit balance (negative)
+            totalIncome += -balance;  // Negate the negative balance to get positive income
+        });
+        
+        expenseAccounts.forEach(account => {
+            const balance = Number(balances[account.id] || 0);
+            // Expense accounts have debit balance (positive)
+            totalExpenses += balance;  // Keep positive expense
+        });
+        
+        // Net income = income - expenses
+        const netIncome = totalIncome - totalExpenses;
 
-        // Add a button to close the books if we're in December
-        const currentMonth = new Date().getMonth();
-        if (currentMonth === 11) { // December
-            const currentYear = new Date().getFullYear();
-            accountsTable.insertAdjacentHTML('beforeend', `
-                <div class="closing-section">
-                    <button onclick="closeBooks(${currentYear})">Close Books for ${currentYear}</button>
-                </div>
-            `);
-        }
-
-        // Verify accounting equation
-        const difference = Math.abs(Math.abs(totalAssets) - (totalLiabilities + totalEquity));
-        if (difference > 0.01) {  // Allow for small rounding differences
-            console.warn('Warning: Accounting equation is not balanced!', {
-                totalAssets: Math.abs(totalAssets),
-                totalLiabilities,
-                totalEquity,
-                difference
+        // Add net income to equity section
+        if (netIncome !== 0) {
+            sections.equity.accounts.push({
+                name: 'Utili di esercizio',
+                balance: Math.abs(netIncome)
             });
+            sections.equity.total += netIncome;  // Add the actual value (positive or negative) to total
         }
+
+        // Generate HTML
+        let html = '<div class="balance-sheet">';
+        
+        // Assets Column
+        html += '<div class="balance-sheet-column">';
+        html += '<h3>Assets</h3>';
+        html += '<table>';
+        sections.asset.accounts.forEach(account => {
+            html += `<tr>
+                <td>${account.name}</td>
+                <td class="text-right">${formatCurrency(account.balance)}</td>
+            </tr>`;
+        });
+        html += `<tr class="total-row">
+            <td>Total Assets</td>
+            <td class="text-right">${formatCurrency(sections.asset.total)}</td>
+        </tr>`;
+        html += '</table>';
+        html += '</div>';
+        
+        // Liabilities and Equity Column
+        html += '<div class="balance-sheet-column">';
+        
+        // Liabilities Section
+        html += '<h3>Liabilities</h3>';
+        html += '<table>';
+        sections.liability.accounts.forEach(account => {
+            html += `<tr>
+                <td>${account.name}</td>
+                <td class="text-right">${formatCurrency(account.balance)}</td>
+            </tr>`;
+        });
+        html += `<tr class="total-row">
+            <td>Total Liabilities</td>
+            <td class="text-right">${formatCurrency(sections.liability.total)}</td>
+        </tr>`;
+        html += '</table>';
+        
+        // Equity Section
+        html += '<h3>Equity</h3>';
+        html += '<table>';
+        sections.equity.accounts.forEach(account => {
+            html += `<tr>
+                <td>${account.name}</td>
+                <td class="text-right">${formatCurrency(account.balance)}</td>
+            </tr>`;
+        });
+
+        // Add current year earnings
+        if (netIncome !== 0) {
+            html += `<tr>
+                <td>Utili di esercizio</td>
+                <td class="text-right">${formatCurrency(netIncome)}</td>
+            </tr>`;
+        }
+
+        html += `<tr class="total-row">
+            <td>Total Equity</td>
+            <td class="text-right">${formatCurrency(sections.equity.total)}</td>
+        </tr>`;
+
+        // Total Liabilities and Equity
+        const totalLiabilitiesAndEquity = sections.liability.total + sections.equity.total;
+        html += `<tr class="grand-total-row">
+            <td>Total Liabilities and Equity</td>
+            <td class="text-right">${formatCurrency(totalLiabilitiesAndEquity)}</td>
+        </tr>`;
+        html += '</table>';
+        
+        html += '</div>';
+        html += '</div>';
+        
+        document.getElementById('accountsTable').innerHTML = html;
     } catch (error) {
         console.error('Error loading dashboard:', error);
         alert('Error loading dashboard. Please try again.');
     }
-}
-
-/**
- * Creates an opening balance transaction for an account
- * @param {string} accountId - The account ID to set balance for
- * @param {number} amount - The opening balance amount (positive for assets, negative for liabilities)
- * @param {string} openingBalanceAccountId - The opening balance equity account ID
- */
-async function createOpeningBalance(accountId, amount, openingBalanceAccountId) {
-    const transactionData = {
-        transaction_date: new Date().toISOString().split('T')[0],
-        description: 'Saldo di Apertura',
-        entries: []
-    };
-
-    // Get the account type
-    const account = allAccounts.find(acc => acc.id === accountId);
-    if (!account) {
-        throw new Error('Account not found');
-    }
-
-    // For assets: positive amount means debit (increase)
-    // For liabilities: positive amount means credit (increase)
-    if (account.type === 'asset') {
-        if (amount > 0) {
-            // Debit asset, credit opening balance equity
-            transactionData.entries = [
-                {
-                    account_id: accountId,
-                    debit_amount: amount,
-                    credit_amount: 0
-                },
-                {
-                    account_id: openingBalanceAccountId,
-                    debit_amount: 0,
-                    credit_amount: amount
-                }
-            ];
-        } else {
-            // Credit asset, debit opening balance equity (negative balance)
-            const absAmount = Math.abs(amount);
-            transactionData.entries = [
-                {
-                    account_id: accountId,
-                    debit_amount: 0,
-                    credit_amount: absAmount
-                },
-                {
-                    account_id: openingBalanceAccountId,
-                    debit_amount: absAmount,
-                    credit_amount: 0
-                }
-            ];
-        }
-    } else if (account.type === 'liability') {
-        if (amount > 0) {
-            // Credit liability, debit opening balance equity (positive balance = more liability)
-            transactionData.entries = [
-                {
-                    account_id: accountId,
-                    debit_amount: 0,
-                    credit_amount: amount
-                },
-                {
-                    account_id: openingBalanceAccountId,
-                    debit_amount: amount,
-                    credit_amount: 0
-                }
-            ];
-        } else {
-            // Debit liability, credit opening balance equity (negative balance = less liability)
-            const absAmount = Math.abs(amount);
-            transactionData.entries = [
-                {
-                    account_id: accountId,
-                    debit_amount: absAmount,
-                    credit_amount: 0
-                },
-                {
-                    account_id: openingBalanceAccountId,
-                    debit_amount: 0,
-                    credit_amount: absAmount
-                }
-            ];
-        }
-    }
-
-    try {
-        const response = await fetch(`${API_URL}/transactions/`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(transactionData)
-        });
-
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.detail || 'Error creating opening balance');
-        }
-
-        return await response.json();
-    } catch (error) {
-        console.error('Error creating opening balance:', error);
-        throw error;
-    }
-}
-
-/**
- * Shows the opening balance dialog for an account
- * @param {string} accountId - The account ID to set balance for
- * @param {string} accountName - The account name
- */
-async function showOpeningBalanceDialog(accountId, accountName) {
-    const account = allAccounts.find(acc => acc.id === accountId);
-    if (!account) {
-        alert('Account not found');
-        return;
-    }
-
-    let message;
-    if (account.type === 'asset') {
-        message = `Enter opening balance for ${accountName}:\nPositive number for debit balance (normal)\nNegative number for credit balance\nUse either dot (.) or comma (,) as decimal separator`;
-    } else if (account.type === 'liability') {
-        message = `Enter opening balance for ${accountName}:\nPositive number for credit balance (normal)\nNegative number for debit balance\nUse either dot (.) or comma (,) as decimal separator`;
-    }
-    
-    const amount = prompt(message);
-    
-    if (amount === null) return; // User cancelled
-    
-    const numAmount = parseDecimalNumber(amount);
-    if (isNaN(numAmount)) {
-        alert('Please enter a valid number');
-        return;
-    }
-
-    try {
-        // First, check if we have an opening balance equity account
-        let openingBalanceAccount = allAccounts.find(
-            acc => acc.type === 'equity' && acc.name === 'Saldi di Apertura'
-        );
-
-        // If not, create it
-        if (!openingBalanceAccount) {
-            const response = await fetch(`${API_URL}/accounts/`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    name: 'Saldi di Apertura',
-                    type: 'equity',
-                    description: 'Saldi di apertura dei conti patrimoniali'
-                })
-            });
-
-            if (!response.ok) {
-                throw new Error('Failed to create opening balance account');
-            }
-
-            openingBalanceAccount = await response.json();
-        }
-
-        // Create the opening balance transaction
-        await createOpeningBalance(accountId, numAmount, openingBalanceAccount.id);
-        
-        alert('Opening balance set successfully!');
-        
-        // Force reload to clear cache
-        forceReload();
-    } catch (error) {
-        console.error('Error setting opening balance:', error);
-        alert('Error setting opening balance: ' + error.message);
-    }
-}
-
-// Function to load balance sheet
-async function loadBalanceSheet() {
-    try {
-        const dateInput = document.getElementById('balanceSheetDate');
-        const asOfDate = dateInput.value || new Date().toISOString().split('T')[0];
-        dateInput.value = asOfDate;
-
-        const response = await fetch(`${API_URL}/accounts/`);
-        const accounts = await response.json();
-
-        const balancesResponse = await fetch(`${API_URL}/accounts/balances/?as_of=${asOfDate}`);
-        const balances = await balancesResponse.json();
-
-        const tableHtml = generateBalanceSheetTable(accounts, balances);
-        document.getElementById('accountsTable').innerHTML = tableHtml;
-    } catch (error) {
-        console.error('Error loading balance sheet:', error);
-        alert('Error loading balance sheet. Please try again.');
-    }
-}
-
-// Function to load income statement
-async function loadIncomeStatement() {
-    try {
-        const startDate = document.getElementById('incomeStartDate').value;
-        const endDate = document.getElementById('incomeEndDate').value;
-
-        if (!startDate || !endDate) {
-            // Set default dates if not selected (current month)
-            const today = new Date();
-            const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
-            const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-
-            document.getElementById('incomeStartDate').value = firstDay.toISOString().split('T')[0];
-            document.getElementById('incomeEndDate').value = lastDay.toISOString().split('T')[0];
-            return loadIncomeStatement(); // Retry with default dates
-        }
-
-        const response = await fetch(`${API_URL}/income-statement/?start_date=${startDate}&end_date=${endDate}`);
-        const data = await response.json();
-
-        const tableHtml = generateIncomeStatementTable(data);
-        document.getElementById('incomeStatementTable').innerHTML = tableHtml;
-    } catch (error) {
-        console.error('Error loading income statement:', error);
-        alert('Error loading income statement. Please try again.');
-    }
-}
-
-// Helper function to generate balance sheet table HTML
-function generateBalanceSheetTable(accounts, balances) {
-    const sections = {
-        asset: { title: 'Assets', accounts: [], total: 0 },
-        liability: { title: 'Liabilities', accounts: [], total: 0 },
-        equity: { title: 'Equity', accounts: [], total: 0 }
-    };
-
-    // First pass: organize regular accounts
-    accounts.forEach(account => {
-        if (sections[account.type]) {
-            const balance = Number(balances[account.id] || 0);
-            // For all accounts, use absolute values and handle signs consistently
-            const displayBalance = Math.abs(balance);
-            sections[account.type].accounts.push({
-                ...account,
-                balance: displayBalance
-            });
-            sections[account.type].total += displayBalance;
-        }
-    });
-
-    // Calculate net income (current year earnings)
-    const incomeAccounts = accounts.filter(a => a.type === 'income');
-    const expenseAccounts = accounts.filter(a => a.type === 'expense');
-    
-    let totalIncome = 0;
-    let totalExpenses = 0;
-    
-    incomeAccounts.forEach(account => {
-        totalIncome += Math.abs(Number(balances[account.id] || 0));
-    });
-    
-    expenseAccounts.forEach(account => {
-        totalExpenses += Math.abs(Number(balances[account.id] || 0));
-    });
-    
-    const netIncome = totalIncome - totalExpenses;
-
-    // Add net income to equity section
-    if (netIncome !== 0) {
-        sections.equity.accounts.push({
-            name: 'Utili di esercizio',
-            balance: Math.abs(netIncome)
-        });
-        sections.equity.total += Math.abs(netIncome);
-    }
-
-    // Generate HTML
-    let html = '<div class="balance-sheet">';
-    
-    // Assets Column
-    html += '<div class="balance-sheet-column">';
-    html += '<h3>Assets</h3>';
-    html += '<table>';
-    sections.asset.accounts.forEach(account => {
-        html += `<tr>
-            <td>${account.name}</td>
-            <td class="text-right">${formatCurrency(account.balance)} €</td>
-        </tr>`;
-    });
-    html += `<tr class="total-row">
-        <td>Total Assets</td>
-        <td class="text-right">${formatCurrency(sections.asset.total)} €</td>
-    </tr>`;
-    html += '</table>';
-    html += '</div>';
-    
-    // Liabilities and Equity Column
-    html += '<div class="balance-sheet-column">';
-    
-    // Liabilities Section
-    html += '<h3>Liabilities</h3>';
-    html += '<table>';
-    sections.liability.accounts.forEach(account => {
-        html += `<tr>
-            <td>${account.name}</td>
-            <td class="text-right">${formatCurrency(account.balance)} €</td>
-        </tr>`;
-    });
-    html += `<tr class="total-row">
-        <td>Total Liabilities</td>
-        <td class="text-right">${formatCurrency(sections.liability.total)} €</td>
-    </tr>`;
-    html += '</table>';
-    
-    // Equity Section
-    html += '<h3>Equity</h3>';
-    html += '<table>';
-    sections.equity.accounts.forEach(account => {
-        html += `<tr>
-            <td>${account.name}</td>
-            <td class="text-right">${formatCurrency(account.balance)} €</td>
-        </tr>`;
-    });
-    html += `<tr class="total-row">
-        <td>Total Equity</td>
-        <td class="text-right">${formatCurrency(sections.equity.total)} €</td>
-    </tr>`;
-    
-    // Total Liabilities and Equity
-    const totalLiabilitiesAndEquity = sections.liability.total + sections.equity.total;
-    html += `<tr class="grand-total-row">
-        <td>Total Liabilities and Equity</td>
-        <td class="text-right">${formatCurrency(totalLiabilitiesAndEquity)} €</td>
-    </tr>`;
-    html += '</table>';
-    
-    html += '</div>';
-    html += '</div>';
-    
-    return html;
 }
 
 // Helper function to generate income statement table HTML
@@ -1888,3 +1499,169 @@ document.addEventListener('DOMContentLoaded', () => {
     // Show dashboard section by default
     showSection('dashboard');
 });
+
+// Function to load balance sheet
+async function loadBalanceSheet() {
+    try {
+        const dateInput = document.getElementById('balanceSheetDate');
+        const asOfDate = dateInput.value || new Date().toISOString().split('T')[0];
+        dateInput.value = asOfDate;
+
+        // Fetch balance sheet data from backend
+        const response = await fetch(`${API_URL}/balance-sheet/?as_of=${asOfDate}`);
+        if (!response.ok) {
+            throw new Error('Failed to fetch balance sheet data');
+        }
+        const data = await response.json();
+
+        // Generate HTML using the data from backend
+        let html = '<div class="balance-sheet">';
+        
+        // Assets Column
+        html += '<div class="balance-sheet-column">';
+        html += '<h3>Assets</h3>';
+        html += '<table>';
+        data.assets.forEach(account => {
+            html += `<tr>
+                <td>${account.name}</td>
+                <td class="text-right">${formatCurrency(account.balance)}</td>
+            </tr>`;
+        });
+        html += `<tr class="total-row">
+            <td>Total Assets</td>
+            <td class="text-right">${formatCurrency(data.total_assets)}</td>
+        </tr>`;
+        html += '</table>';
+        html += '</div>';
+        
+        // Liabilities and Equity Column
+        html += '<div class="balance-sheet-column">';
+        
+        // Liabilities Section
+        html += '<h3>Liabilities</h3>';
+        html += '<table>';
+        data.liabilities.forEach(account => {
+            html += `<tr>
+                <td>${account.name}</td>
+                <td class="text-right">${formatCurrency(account.balance)}</td>
+            </tr>`;
+        });
+        html += `<tr class="total-row">
+            <td>Total Liabilities</td>
+            <td class="text-right">${formatCurrency(data.total_liabilities)}</td>
+        </tr>`;
+        html += '</table>';
+        
+        // Equity Section
+        html += '<h3>Equity</h3>';
+        html += '<table>';
+        data.equity.forEach(account => {
+            html += `<tr>
+                <td>${account.name}</td>
+                <td class="text-right">${formatCurrency(account.balance)}</td>
+            </tr>`;
+        });
+
+        // Add net income if it's not zero
+        if (data.net_income !== 0) {
+            html += `<tr>
+                <td>Utili di esercizio</td>
+                <td class="text-right">${formatCurrency(data.net_income)}</td>
+            </tr>`;
+        }
+
+        html += `<tr class="total-row">
+            <td>Total Equity</td>
+            <td class="text-right">${formatCurrency(data.total_equity)}</td>
+        </tr>`;
+
+        // Add Total Liabilities and Equity as the last row of the equity table
+        html += `<tr class="grand-total-row">
+            <td>Total Liabilities and Equity</td>
+            <td class="text-right">${formatCurrency(data.total_liabilities + data.total_equity)}</td>
+        </tr>`;
+        html += '</table>';
+        
+        html += '</div>';
+        html += '</div>';
+
+        document.getElementById('accountsTable').innerHTML = html;
+    } catch (error) {
+        console.error('Error loading balance sheet:', error);
+        alert('Error loading balance sheet. Please try again.');
+    }
+}
+
+// Function to load income statement
+async function loadIncomeStatement() {
+    try {
+        const startDate = document.getElementById('incomeStartDate').value;
+        const endDate = document.getElementById('incomeEndDate').value;
+
+        if (!startDate || !endDate) {
+            // Set default dates if not selected (current month)
+            const today = new Date();
+            const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+            const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+
+            document.getElementById('incomeStartDate').value = firstDay.toISOString().split('T')[0];
+            document.getElementById('incomeEndDate').value = lastDay.toISOString().split('T')[0];
+            return loadIncomeStatement(); // Retry with default dates
+        }
+
+        // Fetch accounts with their balances
+        const accountsResponse = await fetch(`${API_URL}/accounts/`);
+        const accounts = await accountsResponse.json();
+        
+        // Fetch balances for the period
+        const balancesResponse = await fetch(`${API_URL}/accounts/balances/?as_of=${endDate}`);
+        const balances = await balancesResponse.json();
+        
+        // Filter and calculate income and expenses
+        const incomeAccounts = accounts.filter(a => a.type === 'income');
+        const expenseAccounts = accounts.filter(a => a.type === 'expense');
+        
+        let totalIncome = 0;
+        const incomeDetails = [];
+        incomeAccounts.forEach(account => {
+            const balance = Number(balances[account.id] || 0);
+            const amount = -balance;  // Convert credit balance to positive income
+            if (amount !== 0) {
+                incomeDetails.push({
+                    name: account.name,
+                    balance: amount
+                });
+                totalIncome += amount;
+            }
+        });
+        
+        let totalExpenses = 0;
+        const expenseDetails = [];
+        expenseAccounts.forEach(account => {
+            const balance = Number(balances[account.id] || 0);
+            if (balance !== 0) {
+                expenseDetails.push({
+                    name: account.name,
+                    balance: balance
+                });
+                totalExpenses += balance;
+            }
+        });
+        
+        const netIncome = totalIncome - totalExpenses;
+        
+        // Generate HTML
+        const html = generateIncomeStatementTable({
+            income: incomeDetails,
+            expenses: expenseDetails,
+            total_income: totalIncome,
+            total_expenses: totalExpenses,
+            net_income: netIncome
+        });
+        
+        document.getElementById('incomeStatementTable').innerHTML = html;
+    } catch (error) {
+        console.error('Error loading income statement:', error);
+        alert('Error loading income statement. Please try again.');
+    }
+}
