@@ -330,19 +330,85 @@ async function loadAccounts() {
 
 function updateAccountsList(accounts) {
     const accountsList = document.getElementById('accountsList');
-    accountsList.innerHTML = accounts.map(account => `
-        <div class="account-item">
-            <div class="account-info">
-                <strong>${account.code} - ${account.name}</strong>
-                ${account.description ? `<p>${account.description}</p>` : ''}
-            </div>
-            <div class="account-actions">
-                <button onclick="editAccount('${account.id}')">Edit</button>
-                <button onclick="deleteAccount('${account.id}')">Delete</button>
-                <button onclick="showOpeningBalanceDialog('${account.id}', '${account.name}')">Set Opening Balance</button>
-            </div>
-        </div>
-    `).join('');
+    
+    // Group accounts by type first, then by category
+    const accountsByType = {
+        asset: { name: 'Assets', accounts: [] },
+        liability: { name: 'Liabilities', accounts: [] },
+        equity: { name: 'Equity', accounts: [] },
+        income: { name: 'Income', accounts: [] },
+        expense: { name: 'Expenses', accounts: [] }
+    };
+    
+    accounts.forEach(account => {
+        accountsByType[account.type].accounts.push(account);
+    });
+
+    // Create table structure
+    let html = `
+        <table class="accounts-table">
+            <thead>
+                <tr>
+                    <th>Code</th>
+                    <th>Name</th>
+                    <th>Type</th>
+                    <th>Description</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>`;
+
+    // Add accounts by type
+    Object.entries(accountsByType).forEach(([type, typeData]) => {
+        if (typeData.accounts.length > 0) {
+            // Add type header
+            html += `
+                <tr class="category-row" onclick="toggleCategoryAccounts('${type}')">
+                    <td colspan="5">
+                        <div class="category-header">
+                            <span class="toggle-icon">▼</span>
+                            ${typeData.name}
+                            <span class="account-count">(${typeData.accounts.length} accounts)</span>
+                        </div>
+                    </td>
+                </tr>`;
+
+            // Add accounts for this type
+            typeData.accounts.sort((a, b) => a.code.localeCompare(b.code)).forEach(account => {
+                html += `
+                    <tr class="account-row" data-category="${type}">
+                        <td>${account.code}</td>
+                        <td>${account.name}</td>
+                        <td>${account.type}</td>
+                        <td>${account.description || ''}</td>
+                        <td class="account-actions">
+                            <button onclick="editAccount('${account.id}')">Edit</button>
+                            <button onclick="deleteAccount('${account.id}')">Delete</button>
+                            <button onclick="showOpeningBalanceDialog('${account.id}', '${account.name}')">Set Opening Balance</button>
+                        </td>
+                    </tr>`;
+            });
+        }
+    });
+
+    html += `
+            </tbody>
+        </table>`;
+    
+    accountsList.innerHTML = html;
+}
+
+// Update the toggle function to work with type-based categories
+function toggleCategoryAccounts(type) {
+    const rows = document.querySelectorAll(`.account-row[data-category="${type}"]`);
+    const header = document.querySelector(`tr.category-row[onclick*="${type}"]`);
+    const icon = header.querySelector('.toggle-icon');
+    
+    rows.forEach(row => {
+        row.style.display = row.style.display === 'none' ? '' : 'none';
+    });
+    
+    icon.textContent = icon.textContent === '▼' ? '▶' : '▼';
 }
 
 async function createAccount(event) {

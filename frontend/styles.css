@@ -561,4 +561,86 @@ th {
 
 .refresh-btn {
     margin-left: auto;
+}
+
+/* Accounts Table Styles */
+.accounts-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 1rem;
+    background-color: white;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.accounts-table th,
+.accounts-table td {
+    padding: 0.75rem;
+    text-align: left;
+    border-bottom: 1px solid #dee2e6;
+}
+
+.accounts-table th {
+    background-color: #f8f9fa;
+    font-weight: bold;
+    color: #333;
+}
+
+.category-row {
+    background-color: #f8f9fa;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.category-row:hover {
+    background-color: #e9ecef;
+}
+
+.category-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.25rem 0;
+}
+
+.toggle-icon {
+    font-family: monospace;
+    color: #666;
+    transition: transform 0.2s;
+}
+
+.account-count {
+    color: #666;
+    font-size: 0.9375rem;
+    margin-left: 0.5rem;
+}
+
+.account-row {
+    background-color: white;
+    transition: background-color 0.2s;
+}
+
+.account-row:hover {
+    background-color: #f8f9fa;
+}
+
+.account-actions {
+    display: flex;
+    gap: 0.5rem;
+    justify-content: flex-start;
+}
+
+.account-actions button {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.875rem;
+    white-space: nowrap;
+}
+
+/* Update existing account-item styles to match new design */
+.account-item {
+    border-radius: 4px;
+    margin-bottom: 0.5rem;
+}
+
+.account-info {
+    padding: 0.5rem;
 } 
