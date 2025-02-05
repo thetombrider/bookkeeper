@@ -706,6 +706,14 @@ function addJournalEntryRow() {
     entriesList.appendChild(newRow);
 }
 
+// Helper function to parse decimal numbers
+function parseDecimalNumber(value) {
+    if (!value) return 0;
+    // Remove any thousand separators and normalize decimal separator to dot
+    const normalized = value.toString().replace(/\./g, '').replace(',', '.');
+    return parseFloat(normalized);
+}
+
 async function createTransaction(event) {
     event.preventDefault();
     
@@ -713,8 +721,8 @@ async function createTransaction(event) {
     const entries = [];
     document.querySelectorAll('.journal-entry-row').forEach(row => {
         const accountId = row.querySelector('.journal-entry-account').value;
-        const debitAmount = parseFloat(row.querySelector('.journal-entry-debit').value) || 0;
-        const creditAmount = parseFloat(row.querySelector('.journal-entry-credit').value) || 0;
+        const debitAmount = parseDecimalNumber(row.querySelector('.journal-entry-debit').value);
+        const creditAmount = parseDecimalNumber(row.querySelector('.journal-entry-credit').value);
         
         if (accountId && (debitAmount > 0 || creditAmount > 0)) {
             entries.push({
@@ -1482,16 +1490,16 @@ async function showOpeningBalanceDialog(accountId, accountName) {
 
     let message;
     if (account.type === 'asset') {
-        message = `Enter opening balance for ${accountName}:\nPositive number for debit balance (normal)\nNegative number for credit balance`;
+        message = `Enter opening balance for ${accountName}:\nPositive number for debit balance (normal)\nNegative number for credit balance\nUse either dot (.) or comma (,) as decimal separator`;
     } else if (account.type === 'liability') {
-        message = `Enter opening balance for ${accountName}:\nPositive number for credit balance (normal)\nNegative number for debit balance`;
+        message = `Enter opening balance for ${accountName}:\nPositive number for credit balance (normal)\nNegative number for debit balance\nUse either dot (.) or comma (,) as decimal separator`;
     }
     
     const amount = prompt(message);
     
     if (amount === null) return; // User cancelled
     
-    const numAmount = parseFloat(amount);
+    const numAmount = parseDecimalNumber(amount);
     if (isNaN(numAmount)) {
         alert('Please enter a valid number');
         return;
