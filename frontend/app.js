@@ -608,28 +608,53 @@ function addJournalEntryRow() {
     newRow.innerHTML = `
         <select class="journal-entry-account" required>
             <option value="">Select an account</option>
+            ${allAccounts.map(account => `
+                <option value="${account.id}">${account.code} - ${account.name}</option>
+            `).join('')}
         </select>
-        <input type="number" step="0.01" placeholder="Debit amount" class="journal-entry-debit">
-        <input type="number" step="0.01" placeholder="Credit amount" class="journal-entry-credit">
-        <button type="button" onclick="this.parentElement.remove()">Remove</button>
+        <input type="number" 
+               step="0.01" 
+               placeholder="0,00" 
+               class="journal-entry-debit" 
+               onchange="updateTotals()">
+        <input type="number" 
+               step="0.01" 
+               placeholder="0,00" 
+               class="journal-entry-credit" 
+               onchange="updateTotals()">
+        <button type="button" onclick="removeJournalEntry(this)" title="Remove entry">
+            <span>×</span>
+        </button>
     `;
     
-    // Populate account options
-    loadAccounts().then(() => {
-        const select = newRow.querySelector('.journal-entry-account');
-        const accounts = Array.from(document.querySelectorAll('#accountsList tr')).slice(1); // Skip header row
-        select.innerHTML = `
-            <option value="">Select an account</option>
-            ${accounts.map(row => {
-                const code = row.cells[0].textContent;
-                const name = row.cells[1].textContent;
-                const id = row.querySelector('button').onclick.toString().match(/'([^']+)'/)[1];
-                return `<option value="${id}">${code} - ${name}</option>`;
-            }).join('')}
-        `;
+    entriesList.appendChild(newRow);
+    updateTotals();
+}
+
+function removeJournalEntry(button) {
+    button.closest('.journal-entry-row').remove();
+    updateTotals();
+}
+
+function updateTotals() {
+    let totalDebits = 0;
+    let totalCredits = 0;
+    
+    document.querySelectorAll('.journal-entry-row').forEach(row => {
+        const debit = parseDecimalNumber(row.querySelector('.journal-entry-debit').value) || 0;
+        const credit = parseDecimalNumber(row.querySelector('.journal-entry-credit').value) || 0;
+        
+        totalDebits += debit;
+        totalCredits += credit;
     });
     
-    entriesList.appendChild(newRow);
+    document.getElementById('total-debits').textContent = formatCurrency(totalDebits);
+    document.getElementById('total-credits').textContent = formatCurrency(totalCredits);
+    
+    // Highlight totals if they don't match
+    const totalsMatch = Math.abs(totalDebits - totalCredits) < 0.01;
+    document.getElementById('total-debits').style.color = totalsMatch ? '#333' : '#dc3545';
+    document.getElementById('total-credits').style.color = totalsMatch ? '#333' : '#dc3545';
 }
 
 // Helper function to parse decimal numbers

@@ -121,16 +121,102 @@ button:hover {
 }
 
 /* Journal Entries */
+.journal-entries {
+    background-color: white;
+    padding: 1.5rem;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    margin-bottom: 2rem;
+}
+
+.journal-entries h2 {
+    color: #333;
+    margin-bottom: 1.5rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 2px solid #007bff;
+}
+
+.journal-actions {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.journal-actions button {
+    padding: 0.75rem 1.5rem;
+    font-size: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
 .journal-entries-list {
-    margin-bottom: 1rem;
+    margin-bottom: 1.5rem;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    overflow: hidden;
 }
 
 .journal-entry-row {
     display: grid;
-    grid-template-columns: 2fr 1fr 1fr auto;
+    grid-template-columns: 3fr 1fr 1fr auto;
     gap: 1rem;
-    margin-bottom: 0.5rem;
+    padding: 1rem;
     align-items: center;
+    border-bottom: 1px solid #dee2e6;
+    background-color: #fff;
+}
+
+.journal-entry-row:last-child {
+    border-bottom: none;
+}
+
+.journal-entry-row:hover {
+    background-color: #f8f9fa;
+}
+
+.journal-entry-row select,
+.journal-entry-row input {
+    padding: 0.5rem;
+    border: 1px solid #ced4da;
+    border-radius: 4px;
+    font-size: 0.9375rem;
+}
+
+.journal-entry-row input[type="number"] {
+    text-align: right;
+    font-family: monospace;
+}
+
+.journal-entry-row button {
+    padding: 0.4rem 0.8rem;
+    font-size: 0.875rem;
+    background-color: #dc3545;
+}
+
+.journal-entry-row button:hover {
+    background-color: #c82333;
+}
+
+.journal-totals {
+    display: flex;
+    justify-content: flex-end;
+    gap: 2rem;
+    padding: 1rem;
+    background-color: #f8f9fa;
+    border-top: 2px solid #dee2e6;
+    font-weight: bold;
+}
+
+.journal-total {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.journal-total span {
+    font-family: monospace;
+    font-size: 1.1rem;
 }
 
 /* Reports */

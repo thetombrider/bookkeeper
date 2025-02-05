@@ -109,25 +109,36 @@
         <!-- Transactions Section -->
         <section id="transactions" class="section hidden">
             <h2>Transactions</h2>
-            <div class="form-container">
-                <h3>Create Transaction</h3>
-                <form id="transactionForm" onsubmit="createTransaction(event)">
-                    <div class="form-group">
-                        <label for="transactionDate">Date:</label>
-                        <input type="date" id="transactionDate" required>
+            
+            <!-- Add Transaction Section -->
+            <section class="journal-entries">
+                <h2>Add Transaction</h2>
+                
+                <div class="journal-actions">
+                    <button onclick="addJournalEntryRow()">
+                        <span>Add Entry</span>
+                    </button>
+                    <button onclick="createTransaction(event)" class="create-transaction">
+                        <span>Create Transaction</span>
+                    </button>
+                </div>
+
+                <div class="journal-entries-list">
+                    <!-- Journal entries will be added here dynamically -->
+                </div>
+
+                <div class="journal-totals">
+                    <div class="journal-total">
+                        <label>Total Debits:</label>
+                        <span id="total-debits">€0,00</span>
                     </div>
-                    <div class="form-group">
-                        <label for="transactionDescription">Description:</label>
-                        <input type="text" id="transactionDescription" required>
+                    <div class="journal-total">
+                        <label>Total Credits:</label>
+                        <span id="total-credits">€0,00</span>
                     </div>
-                    <div id="journalEntries">
-                        <h4>Journal Entries</h4>
-                        <div class="journal-entries-list"></div>
-                        <button type="button" onclick="addJournalEntryRow()">Add Entry</button>
-                    </div>
-                    <button type="submit">Create Transaction</button>
-                </form>
-            </div>
+                </div>
+            </section>
+
             <div class="list-container">
                 <h3>Recent Transactions</h3>
                 <div id="transactionsList"></div>
