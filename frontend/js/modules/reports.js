@@ -115,15 +115,17 @@ export async function loadIncomeStatement(startDate, endDate) {
             html += `<tr><td colspan="2" class="text-center">No income entries for this period</td></tr>`;
         } else {
             income.forEach(item => {
+                // Check for both amount and balance properties
+                const amount = item.amount ?? item.balance ?? 0;
                 html += `<tr>
                     <td>${item.name}</td>
-                    <td class="text-right">${formatCurrency(Number(item.amount))}</td>
+                    <td class="text-right">${formatCurrency(amount)}</td>
                 </tr>`;
             });
         }
         html += `<tr class="total-row">
             <td>Total Income</td>
-            <td class="text-right">${formatCurrency(Number(totalIncome))}</td>
+            <td class="text-right">${formatCurrency(totalIncome)}</td>
         </tr>`;
         html += '</tbody></table>';
         
@@ -135,15 +137,17 @@ export async function loadIncomeStatement(startDate, endDate) {
             html += `<tr><td colspan="2" class="text-center">No expense entries for this period</td></tr>`;
         } else {
             expenses.forEach(item => {
+                // Check for both amount and balance properties
+                const amount = item.amount ?? item.balance ?? 0;
                 html += `<tr>
                     <td>${item.name}</td>
-                    <td class="text-right">${formatCurrency(Number(item.amount))}</td>
+                    <td class="text-right">${formatCurrency(amount)}</td>
                 </tr>`;
             });
         }
         html += `<tr class="total-row">
             <td>Total Expenses</td>
-            <td class="text-right">${formatCurrency(Number(totalExpenses))}</td>
+            <td class="text-right">${formatCurrency(totalExpenses)}</td>
         </tr>`;
         html += '</tbody></table>';
         
@@ -152,7 +156,7 @@ export async function loadIncomeStatement(startDate, endDate) {
         html += '<tbody>';
         html += `<tr class="grand-total-row">
             <td>Net Income</td>
-            <td class="text-right">${formatCurrency(Number(netIncome))}</td>
+            <td class="text-right">${formatCurrency(netIncome)}</td>
         </tr>`;
         html += '</tbody></table>';
         

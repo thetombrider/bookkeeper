@@ -1,9 +1,18 @@
 export const API_URL = 'http://localhost:8000';
 
 export const formatCurrency = (amount) => {
-    // Only format if it's actually a number
-    if (typeof amount !== 'number' || isNaN(amount)) {
-        return '—';
+    // Handle null/undefined
+    if (amount === null || amount === undefined) {
+        return '€0,00';
+    }
+    
+    // Convert to number if it's a string
+    const num = typeof amount === 'string' ? Number(amount) : amount;
+    
+    // Check if it's a valid number
+    if (typeof num !== 'number' || isNaN(num)) {
+        console.log('Invalid amount:', amount, typeof amount); // Debug log
+        return '€0,00';
     }
     
     return new Intl.NumberFormat('it-IT', {
@@ -11,7 +20,7 @@ export const formatCurrency = (amount) => {
         currency: 'EUR',
         minimumFractionDigits: 2,
         maximumFractionDigits: 2
-    }).format(amount);
+    }).format(num);
 };
 
 export const parseDecimalNumber = (value) => {

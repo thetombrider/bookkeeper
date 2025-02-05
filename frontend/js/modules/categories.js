@@ -25,14 +25,36 @@ export async function loadCategories() {
                                 <td>${category.name}</td>
                                 <td>${category.description || ''}</td>
                                 <td>
-                                    <button onclick="editCategory('${category.id}', '${category.name}', '${category.description || ''}')">Edit</button>
-                                    <button onclick="deleteCategory('${category.id}')">Delete</button>
+                                    <button data-action="edit" data-id="${category.id}" 
+                                            data-name="${category.name}" 
+                                            data-description="${category.description || ''}">
+                                        Edit
+                                    </button>
+                                    <button data-action="delete" data-id="${category.id}">
+                                        Delete
+                                    </button>
                                 </td>
                             </tr>
                         `).join('')}
                     </tbody>
                 </table>
             `;
+
+            // Add event listeners for edit and delete buttons
+            categoriesList.querySelectorAll('button[data-action]').forEach(button => {
+                button.addEventListener('click', (e) => {
+                    const action = e.target.dataset.action;
+                    const id = e.target.dataset.id;
+                    
+                    if (action === 'edit') {
+                        const name = e.target.dataset.name;
+                        const description = e.target.dataset.description;
+                        handleEditCategory(id, name, description);
+                    } else if (action === 'delete') {
+                        handleDeleteCategory(id);
+                    }
+                });
+            });
         }
         
         // Update category dropdown in accounts section if needed
@@ -41,6 +63,38 @@ export async function loadCategories() {
     } catch (error) {
         console.error('Error loading categories:', error);
         throw error;
+    }
+}
+
+function handleEditCategory(id, name, description) {
+    // Fill the form with category data
+    const nameInput = document.getElementById('categoryName');
+    const descInput = document.getElementById('categoryDescription');
+    const form = document.getElementById('categoryForm');
+    
+    if (nameInput && descInput && form) {
+        nameInput.value = name;
+        descInput.value = description;
+        
+        // Update form to handle edit instead of create
+        form.dataset.editId = id;
+        
+        // Change button text
+        const submitButton = form.querySelector('button[type="submit"]');
+        if (submitButton) {
+            submitButton.textContent = 'Update Category';
+        }
+    }
+}
+
+async function handleDeleteCategory(id) {
+    if (confirm('Are you sure you want to delete this category?')) {
+        try {
+            await deleteCategory(id);
+            await loadCategories();
+        } catch (error) {
+            alert('Error deleting category: ' + error.message);
+        }
     }
 }
 
@@ -74,8 +128,10 @@ export function updateCategoryDropdown() {
 export async function createCategory(event) {
     event.preventDefault();
     
+    const form = event.target;
     const nameInput = document.getElementById('categoryName');
     const descInput = document.getElementById('categoryDescription');
+    const editId = form.dataset.editId;
     
     const categoryData = {
         name: nameInput.value,
@@ -83,56 +139,57 @@ export async function createCategory(event) {
     };
     
     try {
-        const response = await fetch(`${API_URL}/account-categories/`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(categoryData)
-        });
-        
-        if (!response.ok) {
-            const data = await response.json();
-            throw new Error(data.detail || 'Error creating category');
+        if (editId) {
+            // Update existing category
+            await updateCategory(editId, categoryData);
+            // Reset form state
+            form.dataset.editId = '';
+            const submitButton = form.querySelector('button[type="submit"]');
+            if (submitButton) {
+                submitButton.textContent = 'Create Category';
+            }
+        } else {
+            // Create new category
+            const response = await fetch(`${API_URL}/account-categories/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(categoryData)
+            });
+            
+            if (!response.ok) {
+                const data = await response.json();
+                throw new Error(data.detail || 'Error creating category');
+            }
         }
         
         // Clear form and reload categories
-        event.target.reset();
+        form.reset();
         await loadCategories();
         
         return true;
     } catch (error) {
-        console.error('Error creating category:', error);
+        console.error('Error creating/updating category:', error);
         throw error;
     }
 }
 
-export async function updateCategory(event, id) {
-    event.preventDefault();
+async function updateCategory(id, categoryData) {
+    const response = await fetch(`${API_URL}/account-categories/${id}`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(categoryData)
+    });
     
-    const categoryData = {
-        name: document.getElementById('categoryName').value,
-        description: document.getElementById('categoryDescription').value
-    };
-    
-    try {
-        const response = await fetch(`${API_URL}/account-categories/${id}`, {
-            method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(categoryData)
-        });
-        
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        
-        return true;
-    } catch (error) {
-        console.error('Error updating category:', error);
-        throw error;
+    if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.detail || 'Error updating category');
     }
+    
+    return response.json();
 }
 
 export async function deleteCategory(id) {
@@ -149,7 +206,6 @@ export async function deleteCategory(id) {
             throw new Error(data.detail?.message || data.detail || 'Cannot delete this category.');
         }
         
-        await loadCategories();
         return true;
     } catch (error) {
         console.error('Error deleting category:', error);
