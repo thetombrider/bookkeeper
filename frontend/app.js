@@ -1,9 +1,20 @@
-// API Base URL
+/**
+ * Personal Finance Bookkeeper Frontend Application
+ * 
+ * This file contains the main JavaScript functionality for the frontend application,
+ * handling all interactions with the backend API and managing the user interface.
+ */
+
+// Configuration
 const API_URL = 'http://localhost:8000';
 
-// Navigation
+/**
+ * Navigation and Section Management
+ * Handles showing/hiding different sections of the application and loading their data
+ * @param {string} sectionId - ID of the section to show ('categories', 'accounts', 'transactions', 'reports')
+ */
 function showSection(sectionId) {
-    // Hide all sections
+    // Hide all sections first
     document.querySelectorAll('.section').forEach(section => {
         section.classList.add('hidden');
     });
@@ -11,29 +22,38 @@ function showSection(sectionId) {
     // Show the selected section
     document.getElementById(sectionId).classList.remove('hidden');
     
-    // Load section data
+    // Load appropriate data based on the section
     switch(sectionId) {
         case 'categories':
             loadCategories();
             break;
         case 'accounts':
-            loadCategories(); // Need categories for the dropdown
+            loadCategories(); // Categories needed for account creation dropdown
             loadAccounts();
             break;
         case 'transactions':
-            loadAccounts(); // Need accounts for the dropdown
+            loadAccounts(); // Accounts needed for transaction entry dropdowns
             loadTransactions();
             break;
     }
 }
 
-// Categories
+/**
+ * Account Categories Management
+ * Functions for loading, creating, updating, and deleting account categories
+ */
+
+/**
+ * Loads all account categories and updates the UI
+ * - Updates the categories list table
+ * - Updates category dropdowns in the accounts section
+ */
 async function loadCategories() {
     try {
         const response = await fetch(`${API_URL}/account-categories/`);
         const categories = await response.json();
         
-        // Update categories list
+        // Update categories list with table view
         const categoriesList = document.getElementById('categoriesList');
         categoriesList.innerHTML = `
             <table>
@@ -75,6 +95,10 @@ async function loadCategories() {
     }
 }
 
+/**
+ * Creates a new account category
+ * @param {Event} event - Form submission event
+ */
 async function createCategory(event) {
     event.preventDefault();
     
@@ -96,10 +120,8 @@ async function createCategory(event) {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
         
-        // Clear form
+        // Clear form and reload categories
         event.target.reset();
-        
-        // Reload categories
         loadCategories();
         
         alert('Category created successfully!');
@@ -109,19 +131,25 @@ async function createCategory(event) {
     }
 }
 
+/**
+ * Prepares the category form for editing an existing category
+ * @param {string} id - Category ID
+ * @param {string} name - Category name
+ * @param {string} description - Category description
+ */
 function editCategory(id, name, description) {
     // Populate form with category data
     document.getElementById('categoryName').value = name;
     document.getElementById('categoryDescription').value = description;
     
-    // Change form submit handler
+    // Change form submit handler to update instead of create
     const form = document.getElementById('categoryForm');
     form.onsubmit = (e) => updateCategory(e, id);
     
-    // Change button text
+    // Update button text
     form.querySelector('button[type="submit"]').textContent = 'Update Category';
     
-    // Add cancel button if it doesn't exist
+    // Add cancel button if not already present
     if (!document.getElementById('cancelEditCategory')) {
         const cancelButton = document.createElement('button');
         cancelButton.id = 'cancelEditCategory';
@@ -811,7 +839,7 @@ function formatCurrency(amount) {
     }).format(amount);
 }
 
-// Initialize the app
+// Initialize the application when the DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
     // Show categories section by default
     showSection('categories');

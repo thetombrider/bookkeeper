@@ -1,3 +1,11 @@
+"""
+FastAPI Backend for Personal Finance Bookkeeper
+
+This module implements the REST API endpoints for the bookkeeping application.
+It provides endpoints for managing account categories, accounts, transactions,
+journal entries, and generating financial reports.
+"""
+
 from datetime import date
 from typing import List, Optional, Dict
 from fastapi import FastAPI, HTTPException, Depends
@@ -15,12 +23,13 @@ from .models import (
 from .services import BookkeepingService
 from .database import get_db, engine, Base
 
-# Create tables
+# Initialize database tables
 Base.metadata.create_all(bind=engine)
 
+# Create FastAPI application instance
 app = FastAPI(title="Personal Finance Bookkeeper")
 
-# Add CORS middleware
+# Configure CORS middleware to allow frontend access
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],  # Update this with your frontend URL in production
@@ -28,6 +37,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Journal Entries Endpoints
 
 @app.get("/journal-entries/", response_model=List[JournalEntryResponse], tags=["journal-entries"])
 async def list_journal_entries(
@@ -40,6 +51,8 @@ async def list_journal_entries(
     List journal entries with optional filters:
     - By account
     - By date range
+    
+    Returns a list of journal entries matching the specified criteria.
     """
     service = BookkeepingService(db)
     return service.list_journal_entries(
@@ -68,9 +81,15 @@ async def get_account_journal_entries(
         end_date=end_date
     )
 
+# Account Categories Endpoints
+
 @app.get("/account-categories/", response_model=List[AccountCategoryResponse], tags=["account-categories"])
 async def list_account_categories(db: Session = Depends(get_db)):
-    """List all account categories."""
+    """
+    List all account categories.
+    
+    Returns a list of all account categories in the system.
+    """
     service = BookkeepingService(db)
     return service.list_account_categories()
 
@@ -79,7 +98,14 @@ async def create_account_category(
     category_data: AccountCategoryCreate,
     db: Session = Depends(get_db)
 ):
-    """Create a new account category."""
+    """
+    Create a new account category.
+    
+    Parameters:
+    - category_data: Data for the new category (name and optional description)
+    
+    Returns the newly created account category.
+    """
     service = BookkeepingService(db)
     try:
         return service.create_account_category(category_data)
@@ -114,6 +140,8 @@ async def delete_account_category(
             raise HTTPException(status_code=404, detail="Account category not found")
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+# Accounts Endpoints
 
 @app.get("/accounts/", response_model=List[AccountResponse], tags=["accounts"])
 async def list_accounts(
@@ -166,6 +194,8 @@ async def delete_account(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+# Transactions Endpoints
+
 @app.post("/transactions/", response_model=TransactionResponse, tags=["transactions"])
 async def create_transaction(
     transaction_data: TransactionCreate,
@@ -208,7 +238,16 @@ async def update_transaction(
     transaction_data: TransactionCreate,
     db: Session = Depends(get_db)
 ):
-    """Update an existing transaction."""
+    """
+    Update an existing transaction.
+    
+    Parameters:
+    - transaction_id: ID of the transaction to update
+    - transaction_data: New transaction data including journal entries
+    
+    Returns the updated transaction with its journal entries.
+    Validates that debits equal credits before updating.
+    """
     service = BookkeepingService(db)
     try:
         updated_transaction = service.update_transaction(transaction_id, transaction_data)
@@ -225,7 +264,15 @@ async def delete_transaction(
     transaction_id: str,
     db: Session = Depends(get_db)
 ):
-    """Delete a transaction and its journal entries."""
+    """
+    Delete a transaction and its associated journal entries.
+    
+    Parameters:
+    - transaction_id: ID of the transaction to delete
+    
+    Returns no content (204) on successful deletion.
+    Ensures all related journal entries are also deleted.
+    """
     service = BookkeepingService(db)
     try:
         if not service.delete_transaction(transaction_id):
@@ -233,12 +280,25 @@ async def delete_transaction(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+# Reports Endpoints
+
 @app.get("/balance-sheet/", response_model=BalanceSheet, tags=["reports"])
 async def get_balance_sheet(
     as_of: Optional[date] = None,
     db: Session = Depends(get_db)
 ):
-    """Generate a balance sheet as of a specific date."""
+    """
+    Generate a balance sheet report.
+    
+    Parameters:
+    - as_of: Optional date for point-in-time balance sheet (defaults to current date)
+    
+    Returns a balance sheet showing:
+    - Total assets
+    - Total liabilities
+    - Total equity
+    - Detailed breakdown of each category
+    """
     service = BookkeepingService(db)
     try:
         return service.get_balance_sheet(as_of)
@@ -251,7 +311,19 @@ async def get_income_statement(
     end_date: date,
     db: Session = Depends(get_db)
 ):
-    """Generate an income statement for a specific period."""
+    """
+    Generate an income statement report for a specific period.
+    
+    Parameters:
+    - start_date: Beginning of the reporting period
+    - end_date: End of the reporting period
+    
+    Returns an income statement showing:
+    - Total income
+    - Total expenses
+    - Net income
+    - Detailed breakdown of income and expense accounts
+    """
     service = BookkeepingService(db)
     try:
         return service.get_income_statement(start_date, end_date)
@@ -285,7 +357,16 @@ async def get_account_balance(
     as_of: Optional[date] = None,
     db: Session = Depends(get_db)
 ):
-    """Get the current balance for a specific account, optionally as of a specific date."""
+    """
+    Get the current balance for a specific account.
+    
+    Parameters:
+    - account_id: ID of the account to get balance for
+    - as_of: Optional date for historical balance lookup
+    
+    Returns the account balance as a decimal number.
+    Positive numbers indicate debit balances, negative numbers indicate credit balances.
+    """
     service = BookkeepingService(db)
     # First verify the account exists
     account = service.get_account(account_id)
@@ -301,7 +382,16 @@ async def update_journal_entry(
     entry_data: JournalEntryCreate,
     db: Session = Depends(get_db)
 ):
-    """Update an existing journal entry."""
+    """
+    Update an existing journal entry.
+    
+    Parameters:
+    - entry_id: ID of the journal entry to update
+    - entry_data: New journal entry data
+    
+    Returns the updated journal entry.
+    Ensures the parent transaction remains balanced after the update.
+    """
     service = BookkeepingService(db)
     try:
         updated_entry = service.update_journal_entry(entry_id, entry_data)
@@ -316,7 +406,15 @@ async def delete_journal_entry(
     entry_id: str,
     db: Session = Depends(get_db)
 ):
-    """Delete a journal entry."""
+    """
+    Delete a journal entry.
+    
+    Parameters:
+    - entry_id: ID of the journal entry to delete
+    
+    Returns no content (204) on successful deletion.
+    Validates that the parent transaction remains balanced after deletion.
+    """
     service = BookkeepingService(db)
     try:
         if not service.delete_journal_entry(entry_id):

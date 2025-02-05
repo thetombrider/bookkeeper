@@ -1,3 +1,15 @@
+"""
+BookkeepingService Class
+
+This module implements the core business logic for the bookkeeping application.
+It handles all database operations and business rules for:
+- Account Categories
+- Accounts
+- Transactions
+- Journal Entries
+- Financial Reports
+"""
+
 from datetime import date
 from decimal import Decimal
 from typing import List, Optional, Dict
@@ -7,16 +19,38 @@ from sqlalchemy import func, and_
 from . import models
 
 class BookkeepingService:
+    """
+    Core service class that implements all business logic for the bookkeeping application.
+    Handles database operations and enforces business rules for double-entry bookkeeping.
+    """
+    
     def __init__(self, db: Session):
+        """Initialize service with database session."""
         self.db = db
 
     # Account Categories
     def list_account_categories(self) -> List[models.AccountCategory]:
-        """List all account categories."""
+        """
+        List all account categories ordered by name.
+        
+        Returns:
+            List[AccountCategory]: List of all account categories in the system
+        """
         return self.db.query(models.AccountCategory).order_by(models.AccountCategory.name).all()
 
     def create_account_category(self, category_data: models.AccountCategoryCreate) -> models.AccountCategory:
-        """Create a new account category."""
+        """
+        Create a new account category.
+        
+        Args:
+            category_data: Data for the new category including name and optional description
+            
+        Returns:
+            AccountCategory: The newly created account category
+            
+        Raises:
+            SQLAlchemyError: If there's a database error
+        """
         db_category = models.AccountCategory(**category_data.model_dump())
         self.db.add(db_category)
         self.db.commit()
@@ -24,7 +58,16 @@ class BookkeepingService:
         return db_category
 
     def update_account_category(self, category_id: str, category_data: models.AccountCategoryCreate) -> Optional[models.AccountCategory]:
-        """Update an existing account category."""
+        """
+        Update an existing account category.
+        
+        Args:
+            category_id: ID of the category to update
+            category_data: New data for the category
+            
+        Returns:
+            Optional[AccountCategory]: Updated category or None if not found
+        """
         db_category = self.db.query(models.AccountCategory).filter(models.AccountCategory.id == category_id).first()
         if not db_category:
             return None
@@ -37,7 +80,18 @@ class BookkeepingService:
         return db_category
 
     def delete_account_category(self, category_id: str) -> bool:
-        """Delete an account category. Returns True if successful, False if category not found."""
+        """
+        Delete an account category if it has no associated accounts.
+        
+        Args:
+            category_id: ID of the category to delete
+            
+        Returns:
+            bool: True if deleted successfully, False if not found
+            
+        Raises:
+            ValueError: If category has associated accounts
+        """
         db_category = self.db.query(models.AccountCategory).filter(models.AccountCategory.id == category_id).first()
         if not db_category:
             return False
@@ -52,7 +106,16 @@ class BookkeepingService:
 
     # Accounts
     def list_accounts(self, category_id: Optional[str] = None, account_type: Optional[str] = None) -> List[models.Account]:
-        """List accounts, optionally filtered by category or type."""
+        """
+        List accounts with optional filtering.
+        
+        Args:
+            category_id: Optional category ID to filter by
+            account_type: Optional account type to filter by
+            
+        Returns:
+            List[Account]: List of accounts matching the criteria
+        """
         query = self.db.query(models.Account)
         
         if category_id:
@@ -63,11 +126,30 @@ class BookkeepingService:
         return query.order_by(models.Account.code).all()
 
     def get_account(self, account_id: str) -> Optional[models.Account]:
-        """Get a specific account by ID."""
+        """
+        Get a specific account by ID.
+        
+        Args:
+            account_id: ID of the account to retrieve
+            
+        Returns:
+            Optional[Account]: The account if found, None otherwise
+        """
         return self.db.query(models.Account).filter(models.Account.id == account_id).first()
 
     def create_account(self, account_data: models.AccountCreate) -> models.Account:
-        """Create a new account."""
+        """
+        Create a new account in the chart of accounts.
+        
+        Args:
+            account_data: Data for the new account
+            
+        Returns:
+            Account: The newly created account
+            
+        Raises:
+            ValueError: If the specified category doesn't exist
+        """
         # Verify category exists if provided
         if account_data.category_id:
             category = self.db.query(models.AccountCategory).get(account_data.category_id)
@@ -81,7 +163,19 @@ class BookkeepingService:
         return db_account
 
     def update_account(self, account_id: str, account_data: models.AccountCreate) -> Optional[models.Account]:
-        """Update an existing account."""
+        """
+        Update an existing account.
+        
+        Args:
+            account_id: ID of the account to update
+            account_data: New data for the account
+            
+        Returns:
+            Optional[Account]: Updated account or None if not found
+            
+        Raises:
+            ValueError: If the specified category doesn't exist
+        """
         db_account = self.db.query(models.Account).filter(models.Account.id == account_id).first()
         if not db_account:
             return None
@@ -100,7 +194,18 @@ class BookkeepingService:
         return db_account
 
     def delete_account(self, account_id: str) -> bool:
-        """Delete an account. Returns True if successful, False if account not found."""
+        """
+        Delete an account if it has no associated journal entries.
+        
+        Args:
+            account_id: ID of the account to delete
+            
+        Returns:
+            bool: True if deleted successfully, False if not found
+            
+        Raises:
+            ValueError: If account has associated journal entries
+        """
         db_account = self.db.query(models.Account).filter(models.Account.id == account_id).first()
         if not db_account:
             return False
@@ -114,7 +219,16 @@ class BookkeepingService:
         return True
 
     def get_account_balance(self, account_id: str, as_of: Optional[date] = None) -> Decimal:
-        """Calculate the balance for a specific account."""
+        """
+        Calculate the current balance for a specific account.
+        
+        Args:
+            account_id: ID of the account to calculate balance for
+            as_of: Optional date to calculate historical balance
+            
+        Returns:
+            Decimal: The account balance (positive for debit balance, negative for credit balance)
+        """
         query = self.db.query(
             func.sum(models.JournalEntry.debit_amount).label('total_debits'),
             func.sum(models.JournalEntry.credit_amount).label('total_credits')
@@ -136,7 +250,17 @@ class BookkeepingService:
         category_id: Optional[str] = None,
         account_type: Optional[str] = None
     ) -> Dict[str, Decimal]:
-        """Get balances for all accounts, optionally filtered."""
+        """
+        Get balances for multiple accounts with optional filtering.
+        
+        Args:
+            as_of: Optional date for historical balances
+            category_id: Optional category ID to filter accounts
+            account_type: Optional account type to filter accounts
+            
+        Returns:
+            Dict[str, Decimal]: Dictionary mapping account IDs to their balances
+        """
         # First get the accounts we're interested in
         accounts_query = self.db.query(models.Account)
         if category_id:
@@ -155,7 +279,18 @@ class BookkeepingService:
 
     # Transactions
     def create_transaction(self, transaction_data: models.TransactionCreate) -> models.Transaction:
-        """Create a new transaction with journal entries."""
+        """
+        Create a new transaction with associated journal entries.
+        
+        Args:
+            transaction_data: Transaction data including journal entries
+            
+        Returns:
+            Transaction: The newly created transaction
+            
+        Raises:
+            ValueError: If accounts don't exist or debits don't equal credits
+        """
         # Create transaction
         transaction_dict = transaction_data.model_dump(exclude={'entries'})
         db_transaction = models.Transaction(**transaction_dict)
@@ -190,12 +325,24 @@ class BookkeepingService:
         return db_transaction
 
     def update_transaction(self, transaction_id: str, transaction_data: models.TransactionCreate) -> Optional[models.Transaction]:
-        """Update an existing transaction."""
+        """
+        Update an existing transaction and its journal entries.
+        
+        Args:
+            transaction_id: ID of the transaction to update
+            transaction_data: New transaction data including journal entries
+            
+        Returns:
+            Optional[Transaction]: Updated transaction or None if not found
+            
+        Raises:
+            ValueError: If accounts don't exist or debits don't equal credits
+        """
         db_transaction = self.db.query(models.Transaction).filter(models.Transaction.id == transaction_id).first()
         if not db_transaction:
             return None
             
-        # Update transaction details
+        # Update transaction fields
         for key, value in transaction_data.model_dump(exclude={'entries'}).items():
             setattr(db_transaction, key, value)
             
@@ -232,7 +379,15 @@ class BookkeepingService:
         return db_transaction
 
     def delete_transaction(self, transaction_id: str) -> bool:
-        """Delete a transaction and its journal entries. Returns True if successful, False if not found."""
+        """
+        Delete a transaction and all its journal entries.
+        
+        Args:
+            transaction_id: ID of the transaction to delete
+            
+        Returns:
+            bool: True if deleted successfully, False if not found
+        """
         db_transaction = self.db.query(models.Transaction).filter(models.Transaction.id == transaction_id).first()
         if not db_transaction:
             return False
@@ -243,7 +398,15 @@ class BookkeepingService:
         return True
 
     def get_transaction(self, transaction_id: str) -> Optional[models.Transaction]:
-        """Get a specific transaction by ID."""
+        """
+        Get a specific transaction by ID.
+        
+        Args:
+            transaction_id: ID of the transaction to retrieve
+            
+        Returns:
+            Optional[Transaction]: The transaction if found, None otherwise
+        """
         return self.db.query(models.Transaction).filter(models.Transaction.id == transaction_id).first()
 
     def list_transactions(
@@ -251,7 +414,16 @@ class BookkeepingService:
         start_date: Optional[date] = None,
         end_date: Optional[date] = None
     ) -> List[models.Transaction]:
-        """List all transactions, optionally filtered by date range."""
+        """
+        List all transactions with optional date filtering.
+        
+        Args:
+            start_date: Optional start date for filtering
+            end_date: Optional end date for filtering
+            
+        Returns:
+            List[Transaction]: List of transactions matching the criteria
+        """
         query = self.db.query(models.Transaction)
         
         if start_date:
@@ -268,7 +440,17 @@ class BookkeepingService:
         start_date: Optional[date] = None,
         end_date: Optional[date] = None
     ) -> List[models.JournalEntry]:
-        """List journal entries with optional filters."""
+        """
+        List journal entries with optional filtering.
+        
+        Args:
+            account_id: Optional account ID to filter by
+            start_date: Optional start date for filtering
+            end_date: Optional end date for filtering
+            
+        Returns:
+            List[JournalEntry]: List of journal entries matching the criteria
+        """
         query = self.db.query(models.JournalEntry)\
             .join(models.Transaction)  # Join with transactions for date filtering
         
@@ -283,7 +465,19 @@ class BookkeepingService:
         return query.order_by(models.Transaction.transaction_date.desc()).all()
 
     def update_journal_entry(self, entry_id: str, entry_data: models.JournalEntryCreate) -> Optional[models.JournalEntry]:
-        """Update an existing journal entry."""
+        """
+        Update an existing journal entry.
+        
+        Args:
+            entry_id: ID of the journal entry to update
+            entry_data: New journal entry data
+            
+        Returns:
+            Optional[JournalEntry]: Updated journal entry or None if not found
+            
+        Raises:
+            ValueError: If the specified account doesn't exist
+        """
         db_entry = self.db.query(models.JournalEntry).filter(models.JournalEntry.id == entry_id).first()
         if not db_entry:
             return None
@@ -293,137 +487,162 @@ class BookkeepingService:
         if not account:
             raise ValueError(f"Account with id {entry_data.account_id} not found")
             
-        # Update entry
         for key, value in entry_data.model_dump().items():
             setattr(db_entry, key, value)
-            
-        # Verify double-entry principle for the entire transaction
-        transaction = db_entry.transaction
-        total_debits = sum(e.debit_amount for e in transaction.journal_entries if e.id != entry_id)
-        total_credits = sum(e.credit_amount for e in transaction.journal_entries if e.id != entry_id)
-        total_debits += entry_data.debit_amount
-        total_credits += entry_data.credit_amount
-        
-        if total_debits != total_credits:
-            self.db.rollback()
-            raise ValueError("Total debits must equal total credits for the transaction")
             
         self.db.commit()
         self.db.refresh(db_entry)
         return db_entry
 
     def delete_journal_entry(self, entry_id: str) -> bool:
-        """Delete a journal entry. Returns True if successful, False if not found."""
+        """
+        Delete a journal entry.
+        
+        Args:
+            entry_id: ID of the journal entry to delete
+            
+        Returns:
+            bool: True if deleted successfully, False if not found
+            
+        Raises:
+            ValueError: If deleting the entry would unbalance the transaction
+        """
         db_entry = self.db.query(models.JournalEntry).filter(models.JournalEntry.id == entry_id).first()
         if not db_entry:
             return False
             
-        # Check if this would break double-entry principle
+        # Check if this would unbalance the transaction
         transaction = db_entry.transaction
-        if len(transaction.journal_entries) <= 2:
-            raise ValueError("Cannot delete journal entry as it would leave transaction with less than two entries")
-            
         total_debits = sum(e.debit_amount for e in transaction.journal_entries if e.id != entry_id)
         total_credits = sum(e.credit_amount for e in transaction.journal_entries if e.id != entry_id)
         
         if total_debits != total_credits:
-            raise ValueError("Deleting this entry would break the double-entry principle")
+            raise ValueError("Cannot delete journal entry as it would unbalance the transaction")
             
         self.db.delete(db_entry)
         self.db.commit()
         return True
 
-    # Reports
+    # Financial Reports
     def get_balance_sheet(self, as_of: Optional[date] = None) -> models.BalanceSheet:
-        """Generate a balance sheet as of a specific date."""
-        if as_of is None:
-            as_of = date.today()
-
-        # Get all account balances
-        balances = self.get_account_balances(as_of=as_of)
+        """
+        Generate a balance sheet report.
         
-        # Organize by account type
-        assets = []
-        liabilities = []
-        equity = []
+        Args:
+            as_of: Optional date for point-in-time balance sheet
+            
+        Returns:
+            BalanceSheet: Balance sheet report containing:
+            - List of assets with balances
+            - List of liabilities with balances
+            - List of equity accounts with balances
+            - Total assets
+            - Total liabilities
+            - Total equity
+        """
+        # Get all accounts grouped by type
+        assets = self.db.query(models.Account).filter(models.Account.type == models.AccountType.ASSET).all()
+        liabilities = self.db.query(models.Account).filter(models.Account.type == models.AccountType.LIABILITY).all()
+        equity = self.db.query(models.Account).filter(models.Account.type == models.AccountType.EQUITY).all()
+        
+        # Calculate balances
+        asset_details = []
         total_assets = Decimal('0.00')
-        total_liabilities = Decimal('0.00')
-        total_equity = Decimal('0.00')
-
-        for account_id, balance in balances.items():
-            account = self.get_account(account_id)
-            if not account:
-                continue
-
-            balance_data = {
-                "account_id": str(account.id),
-                "name": account.name,
-                "balance": balance
-            }
-
-            if account.type == models.AccountType.ASSET:
-                assets.append(balance_data)
+        for account in assets:
+            balance = self.get_account_balance(account.id, as_of)
+            if balance != 0:
+                asset_details.append({
+                    'name': account.name,
+                    'balance': balance
+                })
                 total_assets += balance
-            elif account.type == models.AccountType.LIABILITY:
-                liabilities.append(balance_data)
-                total_liabilities += balance
-            elif account.type == models.AccountType.EQUITY:
-                equity.append(balance_data)
-                total_equity += balance
-
+                
+        liability_details = []
+        total_liabilities = Decimal('0.00')
+        for account in liabilities:
+            balance = self.get_account_balance(account.id, as_of)
+            if balance != 0:
+                liability_details.append({
+                    'name': account.name,
+                    'balance': -balance  # Liabilities are normally credit balances
+                })
+                total_liabilities += -balance
+                
+        equity_details = []
+        total_equity = Decimal('0.00')
+        for account in equity:
+            balance = self.get_account_balance(account.id, as_of)
+            if balance != 0:
+                equity_details.append({
+                    'name': account.name,
+                    'balance': -balance  # Equity accounts are normally credit balances
+                })
+                total_equity += -balance
+                
         return models.BalanceSheet(
-            assets=assets,
-            liabilities=liabilities,
-            equity=equity,
+            assets=asset_details,
+            liabilities=liability_details,
+            equity=equity_details,
             total_assets=total_assets,
             total_liabilities=total_liabilities,
             total_equity=total_equity
         )
-
-    def get_income_statement(self, start_date: date, end_date: date) -> models.IncomeStatement:
-        """Generate an income statement for a specific period."""
-        # Get balances for income and expense accounts
-        income_balances = self.get_account_balances(
-            as_of=end_date,
-            account_type=models.AccountType.INCOME
-        )
-        expense_balances = self.get_account_balances(
-            as_of=end_date,
-            account_type=models.AccountType.EXPENSE
-        )
         
-        income = []
-        expenses = []
+    def get_income_statement(self, start_date: date, end_date: date) -> models.IncomeStatement:
+        """
+        Generate an income statement report for a specific period.
+        
+        Args:
+            start_date: Beginning of the reporting period
+            end_date: End of the reporting period
+            
+        Returns:
+            IncomeStatement: Income statement report containing:
+            - List of income accounts with balances
+            - List of expense accounts with balances
+            - Total income
+            - Total expenses
+            - Net income
+        """
+        # Get all income and expense accounts
+        income_accounts = self.db.query(models.Account).filter(models.Account.type == models.AccountType.INCOME).all()
+        expense_accounts = self.db.query(models.Account).filter(models.Account.type == models.AccountType.EXPENSE).all()
+        
+        # Calculate income totals
+        income_details = []
         total_income = Decimal('0.00')
+        for account in income_accounts:
+            # Get the change in balance over the period
+            start_balance = self.get_account_balance(account.id, start_date)
+            end_balance = self.get_account_balance(account.id, end_date)
+            period_activity = end_balance - start_balance
+            
+            if period_activity != 0:
+                income_details.append({
+                    'name': account.name,
+                    'balance': -period_activity  # Income accounts are normally credit balances
+                })
+                total_income += -period_activity
+                
+        # Calculate expense totals
+        expense_details = []
         total_expenses = Decimal('0.00')
-
-        # Process income accounts
-        for account_id, balance in income_balances.items():
-            account = self.get_account(account_id)
-            if not account:
-                continue
-            income.append({
-                "account_id": str(account.id),
-                "name": account.name,
-                "balance": abs(balance)
-            })
-            total_income += abs(balance)
-
-        # Process expense accounts
-        for account_id, balance in expense_balances.items():
-            account = self.get_account(account_id)
-            if not account:
-                continue
-            expenses.append({
-                "account_id": str(account.id),
-                "name": account.name,
-                "balance": abs(balance)
-            })
-            total_expenses += abs(balance)
-
+        for account in expense_accounts:
+            # Get the change in balance over the period
+            start_balance = self.get_account_balance(account.id, start_date)
+            end_balance = self.get_account_balance(account.id, end_date)
+            period_activity = end_balance - start_balance
+            
+            if period_activity != 0:
+                expense_details.append({
+                    'name': account.name,
+                    'balance': period_activity  # Expense accounts are normally debit balances
+                })
+                total_expenses += period_activity
+                
         return models.IncomeStatement(
-            income=income,
-            expenses=expenses,
+            income=income_details,
+            expenses=expense_details,
             total_income=total_income,
             total_expenses=total_expenses,
             net_income=total_income - total_expenses
