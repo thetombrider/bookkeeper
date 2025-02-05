@@ -24,6 +24,9 @@ function showSection(sectionId) {
     
     // Load appropriate data based on the section
     switch(sectionId) {
+        case 'dashboard':
+            loadDashboard();
+            break;
         case 'categories':
             loadCategories();
             break;
@@ -948,10 +951,58 @@ function formatCurrency(amount) {
     }).format(amount);
 }
 
+async function loadDashboard() {
+    try {
+        // Fetch accounts with their balances
+        const accountsResponse = await fetch(`${API_URL}/accounts/`);
+        const accounts = await accountsResponse.json();
+        
+        // Fetch balances for all accounts
+        const balancesResponse = await fetch(`${API_URL}/accounts/balances/`);
+        const balances = await balancesResponse.json();
+        
+        // Create the HTML for the accounts table
+        const accountsTable = document.getElementById('accountsTable');
+        
+        // Filter and sort accounts
+        const displayAccounts = accounts
+            .filter(account => account.type === 'asset' || account.type === 'liability')
+            .sort((a, b) => a.code.localeCompare(b.code));
+        
+        // Create table HTML
+        let html = `
+            <table>
+                <thead>
+                    <tr>
+                        <th>Account</th>
+                        <th class="text-right">Balance</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${displayAccounts.map(account => {
+                        const balance = balances[account.id] || 0;
+                        return `
+                            <tr>
+                                <td>${account.name}</td>
+                                <td class="balance text-right">${formatCurrency(balance)}</td>
+                            </tr>
+                        `;
+                    }).join('')}
+                </tbody>
+            </table>
+        `;
+        
+        accountsTable.innerHTML = html;
+    } catch (error) {
+        console.error('Error loading dashboard:', error);
+        alert('Error loading dashboard. Please try again.');
+    }
+}
+
 // Initialize the application when the DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
-    // Show categories section by default
-    showSection('categories');
+    // Show dashboard section by default
+    showSection('dashboard');
     
     // Add form submit handlers
     document.getElementById('categoryForm').onsubmit = createCategory;

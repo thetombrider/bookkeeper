@@ -176,4 +176,83 @@ th {
 .text-total {
     font-size: 1.1em;
     color: #007bff;
+}
+
+/* Dashboard */
+.dashboard-container {
+    padding: 1rem;
+}
+
+.accounts-overview {
+    background-color: white;
+    border-radius: 4px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+#accountsTable table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 0;
+}
+
+#accountsTable th, #accountsTable td {
+    padding: 0.75rem;
+    border: 1px solid #ddd;
+    white-space: nowrap;
+}
+
+#accountsTable th {
+    background-color: #f8f9fa;
+    font-weight: bold;
+}
+
+#accountsTable td.balance {
+    font-family: monospace;
+    text-align: right;
+}
+
+#accountsTable th:first-child,
+#accountsTable td:first-child {
+    text-align: left;
+}
+
+#accountsTable th:last-child,
+#accountsTable td:last-child {
+    text-align: right;
+}
+
+.filter-controls {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1rem;
+    align-items: center;
+}
+
+.filter-controls select {
+    max-width: 200px;
+}
+
+.refresh-btn {
+    padding: 0.5rem 1rem;
+    background-color: #4CAF50;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.refresh-btn:hover {
+    background-color: #45a049;
+}
+
+.balance-positive {
+    color: #4CAF50;
+}
+
+.balance-negative {
+    color: #f44336;
+}
+
+.balance-zero {
+    color: #757575;
 } 
