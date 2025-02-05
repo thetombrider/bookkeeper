@@ -108,8 +108,9 @@ async function loadCategories() {
 function updateCategoryDropdown() {
     const accountType = document.getElementById('accountType').value;
     const categorySelect = document.getElementById('accountCategory');
+    const isEditMode = document.getElementById('accountType').disabled;
     
-    if (!accountType) {
+    if (!accountType && !isEditMode) {
         categorySelect.disabled = true;
         categorySelect.innerHTML = '<option value="">Select account type first</option>';
         return;
@@ -479,18 +480,17 @@ async function editAccount(id) {
         // Wait for categories to load
         await loadCategories();
         
-        // Enable category selection
-        const categorySelect = document.getElementById('accountCategory');
-        categorySelect.disabled = false;
-        
-        // Populate form with account data
-        document.getElementById('accountCategory').value = account.category_id || '';
-        document.getElementById('accountName').value = account.name;
-        document.getElementById('accountType').value = account.type;
-        document.getElementById('accountDescription').value = account.description || '';
-        
         // Disable account type change as it would invalidate the account code
         document.getElementById('accountType').disabled = true;
+        
+        // Populate form with account data
+        document.getElementById('accountType').value = account.type;
+        document.getElementById('accountName').value = account.name;
+        document.getElementById('accountDescription').value = account.description || '';
+        
+        // Update and enable category selection
+        updateCategoryDropdown();
+        document.getElementById('accountCategory').value = account.category_id || '';
         
         // Change form submit handler
         const form = document.getElementById('accountForm');
@@ -1047,6 +1047,129 @@ function formatCurrency(amount) {
     }).format(amount);
 }
 
+// Add this new function for closing the books
+async function closeBooks(year) {
+    try {
+        // First, ensure we have a Retained Earnings account
+        let retainedEarningsAccount = allAccounts.find(
+            acc => acc.type === 'equity' && acc.name === 'Utili Portati a Nuovo'
+        );
+
+        // If not, create it
+        if (!retainedEarningsAccount) {
+            const response = await fetch(`${API_URL}/accounts/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    name: 'Utili Portati a Nuovo',
+                    type: 'equity',
+                    description: 'Utili accumulati dalle operazioni precedenti'
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to create Retained Earnings account');
+            }
+
+            retainedEarningsAccount = await response.json();
+        }
+
+        // Create closing entries
+        const transactionData = {
+            transaction_date: `${year}-12-31`,
+            description: `Closing entries for ${year}`,
+            entries: []
+        };
+
+        // Get all income and expense accounts with their balances
+        const accounts = await fetch(`${API_URL}/accounts/`).then(r => r.json());
+        const balances = await fetch(`${API_URL}/accounts/balances/`).then(r => r.json());
+
+        const incomeAccounts = accounts.filter(acc => acc.type === 'income');
+        const expenseAccounts = accounts.filter(acc => acc.type === 'expense');
+
+        // Close income accounts (credit balances)
+        incomeAccounts.forEach(account => {
+            const balance = Math.abs(Number(balances[account.id] || 0));
+            if (balance > 0) {
+                transactionData.entries.push(
+                    {
+                        account_id: account.id,
+                        debit_amount: balance,
+                        credit_amount: 0
+                    }
+                );
+            }
+        });
+
+        // Close expense accounts (debit balances)
+        expenseAccounts.forEach(account => {
+            const balance = Math.abs(Number(balances[account.id] || 0));
+            if (balance > 0) {
+                transactionData.entries.push(
+                    {
+                        account_id: account.id,
+                        debit_amount: 0,
+                        credit_amount: balance
+                    }
+                );
+            }
+        });
+
+        // Calculate net income/loss
+        const totalIncome = incomeAccounts.reduce((sum, account) => 
+            sum + Math.abs(Number(balances[account.id] || 0)), 0);
+        const totalExpenses = expenseAccounts.reduce((sum, account) => 
+            sum + Math.abs(Number(balances[account.id] || 0)), 0);
+        const netIncome = totalIncome - totalExpenses;
+
+        // Add retained earnings entry
+        if (netIncome !== 0) {
+            if (netIncome > 0) {
+                // Net income - credit Retained Earnings
+                transactionData.entries.push({
+                    account_id: retainedEarningsAccount.id,
+                    debit_amount: 0,
+                    credit_amount: netIncome
+                });
+            } else {
+                // Net loss - debit Retained Earnings
+                transactionData.entries.push({
+                    account_id: retainedEarningsAccount.id,
+                    debit_amount: Math.abs(netIncome),
+                    credit_amount: 0
+                });
+            }
+        }
+
+        // Create the closing transaction
+        if (transactionData.entries.length > 0) {
+            const response = await fetch(`${API_URL}/transactions/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(transactionData)
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to create closing entries');
+            }
+
+            alert(`Successfully closed books for ${year}`);
+            await loadDashboard();
+        } else {
+            alert('No entries to close');
+        }
+    } catch (error) {
+        console.error('Error closing books:', error);
+        alert('Error closing books: ' + error.message);
+    }
+}
+
+// Update loadDashboard function to use the actual Retained Earnings account
 async function loadDashboard() {
     try {
         // Fetch accounts with their balances
@@ -1080,7 +1203,7 @@ async function loadDashboard() {
             return sum + Math.abs(balance);
         }, 0);
 
-        // Calculate income and expenses
+        // Calculate current period's income and expenses
         const totalIncome = income.reduce((sum, account) => {
             const balance = Number(balances[account.id] || 0);
             return sum + Math.abs(balance);
@@ -1091,14 +1214,27 @@ async function loadDashboard() {
             return sum + Math.abs(balance);
         }, 0);
 
-        // Calculate retained earnings (income - expenses)
-        const retainedEarnings = totalIncome - totalExpenses;
+        // Find Retained Earnings account if it exists
+        const retainedEarningsAccount = equity.find(account => account.name === 'Utili Portati a Nuovo');
+        const previousRetainedEarnings = retainedEarningsAccount ? 
+            Math.abs(Number(balances[retainedEarningsAccount.id] || 0)) : 0;
 
-        // Calculate total equity including retained earnings
-        const totalEquity = equity.reduce((sum, account) => {
-            const balance = Number(balances[account.id] || 0);
-            return sum + Math.abs(balance);
-        }, 0) + retainedEarnings;
+        // Current period's net income/loss
+        const currentPeriodEarnings = totalIncome - totalExpenses;
+
+        // Total equity is sum of:
+        // 1. Regular equity accounts (excluding Retained Earnings)
+        // 2. Previously closed Retained Earnings (if any)
+        // 3. Current period's earnings
+        const regularEquity = equity.reduce((sum, account) => {
+            if (account.name !== 'Utili Portati a Nuovo') {
+                const balance = Number(balances[account.id] || 0);
+                return sum + Math.abs(balance);
+            }
+            return sum;
+        }, 0);
+
+        const totalEquity = regularEquity + previousRetainedEarnings + currentPeriodEarnings;
         
         // Create the HTML for the balance sheet
         const accountsTable = document.getElementById('accountsTable');
@@ -1166,7 +1302,7 @@ async function loadDashboard() {
                             </tr>
                         </thead>
                         <tbody>
-                            ${equity.map(account => {
+                            ${equity.filter(account => account.name !== 'Utili Portati a Nuovo').map(account => {
                                 const balance = Number(balances[account.id] || 0);
                                 return `
                                     <tr>
@@ -1175,9 +1311,15 @@ async function loadDashboard() {
                                     </tr>
                                 `;
                             }).join('')}
+                            ${retainedEarningsAccount ? `
+                                <tr>
+                                    <td>Utili Esercizi Precedenti</td>
+                                    <td class="balance text-right">${formatCurrency(previousRetainedEarnings)}</td>
+                                </tr>
+                            ` : ''}
                             <tr>
-                                <td>Retained Earnings (Income - Expenses)</td>
-                                <td class="balance text-right">${formatCurrency(retainedEarnings)}</td>
+                                <td>Utile (Perdita) d'Esercizio</td>
+                                <td class="balance text-right">${formatCurrency(currentPeriodEarnings)}</td>
                             </tr>
                             <tr class="total-row">
                                 <td><strong>Total Equity</strong></td>
@@ -1192,6 +1334,17 @@ async function loadDashboard() {
                 </div>
             </div>
         `;
+
+        // Add a button to close the books if we're in December
+        const currentMonth = new Date().getMonth();
+        if (currentMonth === 11) { // December
+            const currentYear = new Date().getFullYear();
+            accountsTable.insertAdjacentHTML('beforeend', `
+                <div class="closing-section">
+                    <button onclick="closeBooks(${currentYear})">Close Books for ${currentYear}</button>
+                </div>
+            `);
+        }
 
         // Verify accounting equation
         const difference = Math.abs(Math.abs(totalAssets) - (totalLiabilities + totalEquity));
