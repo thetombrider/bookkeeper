@@ -218,20 +218,40 @@ async function deleteCategory(id) {
     
     try {
         const response = await fetch(`${API_URL}/account-categories/${id}`, {
-            method: 'DELETE'
+            method: 'DELETE',
+            headers: {
+                'Accept': 'application/json'
+            }
         });
         
+        const text = await response.text();
+        console.log('Raw response:', text);
+        
+        let data = {};
+        try {
+            data = JSON.parse(text);
+            console.log('Parsed data:', data);
+        } catch (e) {
+            console.log('Failed to parse JSON:', e);
+        }
+        
         if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
+            let errorMessage = 'Error deleting category.';
+            
+            if (data && data.detail) {
+                errorMessage = data.detail.message || data.detail || 'Cannot delete this category.';
+            }
+            
+            alert(errorMessage);
+            return;
         }
         
         // Reload categories
         loadCategories();
-        
-        alert('Category deleted successfully!');
+        alert(data.message || 'Category deleted successfully!');
     } catch (error) {
-        console.error('Error deleting category:', error);
-        alert('Error deleting category. Please try again.');
+        console.error('Network or parsing error:', error);
+        alert('Error deleting category. Please check the console for details.');
     }
 }
 
@@ -297,7 +317,6 @@ async function createAccount(event) {
         category_id: document.getElementById('accountCategory').value || null,
         name: document.getElementById('accountName').value,
         type: document.getElementById('accountType').value,
-        code: document.getElementById('accountCode').value,
         description: document.getElementById('accountDescription').value,
         is_active: true
     };
@@ -306,13 +325,32 @@ async function createAccount(event) {
         const response = await fetch(`${API_URL}/accounts/`, {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
             },
             body: JSON.stringify(accountData)
         });
         
+        const text = await response.text();
+        console.log('Raw response:', text);
+        
+        let data = {};
+        try {
+            data = JSON.parse(text);
+            console.log('Parsed data:', data);
+        } catch (e) {
+            console.log('Failed to parse JSON:', e);
+        }
+        
         if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
+            let errorMessage = 'Error creating account.';
+            
+            if (data && data.detail) {
+                errorMessage = data.detail.message || data.detail || 'Cannot create account.';
+            }
+            
+            alert(errorMessage);
+            return;
         }
         
         // Clear form
@@ -321,10 +359,10 @@ async function createAccount(event) {
         // Reload accounts
         loadAccounts();
         
-        alert('Account created successfully!');
+        alert(`Account created successfully with code: ${data.code}`);
     } catch (error) {
-        console.error('Error creating account:', error);
-        alert('Error creating account. Please try again.');
+        console.error('Network or parsing error:', error);
+        alert('Error creating account. Please check the console for details.');
     }
 }
 
@@ -356,7 +394,6 @@ async function editAccount(id) {
         document.getElementById('accountCategory').value = account.category_id || '';
         document.getElementById('accountName').value = account.name;
         document.getElementById('accountType').value = account.type;
-        document.getElementById('accountCode').value = account.code;
         document.getElementById('accountDescription').value = account.description || '';
         
         // Change form submit handler
@@ -388,7 +425,6 @@ async function updateAccount(event, id) {
         category_id: document.getElementById('accountCategory').value || null,
         name: document.getElementById('accountName').value,
         type: document.getElementById('accountType').value,
-        code: document.getElementById('accountCode').value,
         description: document.getElementById('accountDescription').value,
         is_active: true
     };
@@ -397,13 +433,32 @@ async function updateAccount(event, id) {
         const response = await fetch(`${API_URL}/accounts/${id}`, {
             method: 'PUT',
             headers: {
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
             },
             body: JSON.stringify(accountData)
         });
         
+        const text = await response.text();
+        console.log('Raw response:', text);
+        
+        let data = {};
+        try {
+            data = JSON.parse(text);
+            console.log('Parsed data:', data);
+        } catch (e) {
+            console.log('Failed to parse JSON:', e);
+        }
+        
         if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
+            let errorMessage = 'Error updating account.';
+            
+            if (data && data.detail) {
+                errorMessage = data.detail.message || data.detail || 'Cannot update account.';
+            }
+            
+            alert(errorMessage);
+            return;
         }
         
         // Reset form to create mode
@@ -414,8 +469,8 @@ async function updateAccount(event, id) {
         
         alert('Account updated successfully!');
     } catch (error) {
-        console.error('Error updating account:', error);
-        alert('Error updating account. Please try again.');
+        console.error('Network or parsing error:', error);
+        alert('Error updating account. Please check the console for details.');
     }
 }
 
@@ -437,26 +492,46 @@ function cancelEditAccount() {
 }
 
 async function deleteAccount(id) {
-    if (!confirm('Are you sure you want to delete this account? This will also delete all associated transactions.')) {
+    if (!confirm('Are you sure you want to delete this account?')) {
         return;
     }
     
     try {
         const response = await fetch(`${API_URL}/accounts/${id}`, {
-            method: 'DELETE'
+            method: 'DELETE',
+            headers: {
+                'Accept': 'application/json'
+            }
         });
         
+        const text = await response.text();
+        console.log('Raw response:', text);
+        
+        let data = {};
+        try {
+            data = JSON.parse(text);
+            console.log('Parsed data:', data);
+        } catch (e) {
+            console.log('Failed to parse JSON:', e);
+        }
+        
         if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
+            let errorMessage = 'Error deleting account.';
+            
+            if (data && data.detail) {
+                errorMessage = data.detail.message || data.detail || 'Cannot delete this account.';
+            }
+            
+            alert(errorMessage);
+            return;
         }
         
         // Reload accounts
         loadAccounts();
-        
-        alert('Account deleted successfully!');
+        alert(data.message || 'Account deleted successfully!');
     } catch (error) {
-        console.error('Error deleting account:', error);
-        alert('Error deleting account. Please try again.');
+        console.error('Network or parsing error:', error);
+        alert('Error deleting account. Please check the console for details.');
     }
 }
 
@@ -568,7 +643,6 @@ async function createTransaction(event) {
     const transactionData = {
         transaction_date: document.getElementById('transactionDate').value,
         description: document.getElementById('transactionDescription').value,
-        reference_number: document.getElementById('transactionReference').value || null,
         entries: entries
     };
     
@@ -576,14 +650,18 @@ async function createTransaction(event) {
         const response = await fetch(`${API_URL}/transactions/`, {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
             },
             body: JSON.stringify(transactionData)
         });
         
         if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
+            const errorData = await response.json();
+            throw new Error(errorData.detail || 'Error creating transaction');
         }
+        
+        const result = await response.json();
         
         // Clear form
         event.target.reset();
@@ -592,41 +670,72 @@ async function createTransaction(event) {
         // Reload transactions
         loadTransactions();
         
-        alert('Transaction created successfully!');
+        alert(`Transaction created successfully!\nReference Number: ${result.reference_number}`);
     } catch (error) {
         console.error('Error creating transaction:', error);
-        alert('Error creating transaction. Please try again.');
+        alert(error.message || 'Error creating transaction. Please try again.');
     }
 }
 
 async function viewTransaction(id) {
     try {
+        console.log('Fetching transaction:', id);
         const response = await fetch(`${API_URL}/transactions/${id}`);
+        console.log('Response status:', response.status);
+        
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
         
         const transaction = await response.json();
+        console.log('Raw transaction data:', transaction);
         
-        // Create modal or popup to display transaction details
+        // Calculate totals
+        const totalDebits = transaction.journal_entries.reduce((sum, entry) => sum + Number(entry.debit_amount), 0);
+        const totalCredits = transaction.journal_entries.reduce((sum, entry) => sum + Number(entry.credit_amount), 0);
+        
+        // Format the transaction details
         const details = `
-            Date: ${transaction.transaction_date}
-            Description: ${transaction.description}
-            Reference: ${transaction.reference_number || 'N/A'}
-            Status: ${transaction.status}
-            
-            Journal Entries:
-            ${transaction.journal_entries.map(entry => `
-                Account: ${entry.account.name}
-                Debit: ${entry.debit_amount}
-                Credit: ${entry.credit_amount}
-            `).join('\n')}
-        `;
+Transaction Details:
+------------------
+Date: ${transaction.transaction_date}
+Description: ${transaction.description}
+Reference: ${transaction.reference_number || 'N/A'}
+Status: ${transaction.status}
+
+Journal Entries:
+--------------
+${transaction.journal_entries.map(entry => {
+    console.log('Raw entry data:', entry);
+    console.log('Account data:', entry.account);
+    
+    let accountInfo;
+    if (entry.account) {
+        console.log('Account code:', entry.account.code);
+        console.log('Account name:', entry.account.name);
+        accountInfo = `${entry.account.code} - ${entry.account.name}`;
+    } else {
+        console.warn('No account object found for entry:', entry);
+        accountInfo = `Missing Account Information (ID: ${entry.account_id})`;
+    }
+    
+    return `
+Account: ${accountInfo}
+Debit: ${formatCurrency(entry.debit_amount)}
+Credit: ${formatCurrency(entry.credit_amount)}`;
+}).join('\n')}
+
+Summary:
+-------
+Total Debits: ${formatCurrency(totalDebits)}
+Total Credits: ${formatCurrency(totalCredits)}`;
         
-        alert(details); // For now, just show in an alert. Could be improved with a modal
+        console.log('Final formatted details:', details);
+        alert(details);
     } catch (error) {
-        console.error('Error fetching transaction details:', error);
-        alert('Error fetching transaction details. Please try again.');
+        console.error('Error in viewTransaction:', error);
+        console.error('Error stack:', error.stack);
+        alert('Error fetching transaction details: ' + error.message);
     }
 }
 

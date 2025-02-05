@@ -13,7 +13,7 @@ It handles all database operations and business rules for:
 from datetime import date
 from decimal import Decimal
 from typing import List, Optional, Dict
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, joinedload, subqueryload, contains_eager
 from sqlalchemy import func, and_
 
 from . import models
@@ -90,15 +90,20 @@ class BookkeepingService:
             bool: True if deleted successfully, False if not found
             
         Raises:
-            ValueError: If category has associated accounts
+            ValueError: If category has associated accounts, including details about the accounts
         """
         db_category = self.db.query(models.AccountCategory).filter(models.AccountCategory.id == category_id).first()
         if not db_category:
             return False
             
-        # Check if category has any accounts
+        # Check if category has any accounts and get their details
         if db_category.accounts:
-            raise ValueError("Cannot delete category that has accounts associated with it")
+            account_names = [f"'{account.name}' ({account.code})" for account in db_category.accounts]
+            accounts_list = ", ".join(account_names)
+            raise ValueError(
+                f"Cannot delete category '{db_category.name}' because it has {len(db_category.accounts)} "
+                f"associated accounts: {accounts_list}. Please reassign or delete these accounts first."
+            )
             
         self.db.delete(db_category)
         self.db.commit()
@@ -139,6 +144,49 @@ class BookkeepingService:
         """
         return self.db.query(models.Account).filter(models.Account.id == account_id).first()
 
+    def _generate_account_code(self, account_type: models.AccountType) -> str:
+        """
+        Generate the next available account code for the given account type.
+        Format: X-NNN where X is the type prefix and NNN is a progressive number.
+        
+        Args:
+            account_type: The type of account (asset, liability, equity, income, expense)
+            
+        Returns:
+            str: The next available account code
+        """
+        # Define prefix mapping
+        type_prefix = {
+            models.AccountType.ASSET: 'A',
+            models.AccountType.LIABILITY: 'L',
+            models.AccountType.EQUITY: 'E',
+            models.AccountType.INCOME: 'R',  # R for Revenue
+            models.AccountType.EXPENSE: 'X'
+        }
+        
+        prefix = type_prefix[account_type]
+        
+        # Get the highest number for this prefix
+        latest_account = self.db.query(models.Account)\
+            .filter(models.Account.code.like(f'{prefix}-%'))\
+            .order_by(models.Account.code.desc())\
+            .first()
+            
+        if not latest_account:
+            # No accounts of this type exist yet
+            next_number = 1
+        else:
+            try:
+                # Extract the number from the latest code
+                current_number = int(latest_account.code.split('-')[1])
+                next_number = current_number + 1
+            except (IndexError, ValueError):
+                # If there's any error parsing the existing code, start from 1
+                next_number = 1
+                
+        # Format the new code with leading zeros
+        return f"{prefix}-{next_number:03d}"
+
     def create_account(self, account_data: models.AccountCreate) -> models.Account:
         """
         Create a new account in the chart of accounts.
@@ -158,7 +206,11 @@ class BookkeepingService:
             if not category:
                 raise ValueError(f"Account category with id {account_data.category_id} not found")
 
-        db_account = models.Account(**account_data.model_dump())
+        # Generate the account code
+        account_dict = account_data.model_dump()
+        account_dict['code'] = self._generate_account_code(account_data.type)
+
+        db_account = models.Account(**account_dict)
         self.db.add(db_account)
         self.db.commit()
         self.db.refresh(db_account)
@@ -176,7 +228,7 @@ class BookkeepingService:
             Optional[Account]: Updated account or None if not found
             
         Raises:
-            ValueError: If the specified category doesn't exist
+            ValueError: If the specified category doesn't exist or if trying to change account type
         """
         db_account = self.db.query(models.Account).filter(models.Account.id == account_id).first()
         if not db_account:
@@ -187,8 +239,14 @@ class BookkeepingService:
             category = self.db.query(models.AccountCategory).get(account_data.category_id)
             if not category:
                 raise ValueError(f"Account category with id {account_data.category_id} not found")
+        
+        # Don't allow changing account type as it would invalidate the code
+        if account_data.type != db_account.type:
+            raise ValueError(f"Cannot change account type from {db_account.type} to {account_data.type} as it would invalidate the account code")
             
-        for key, value in account_data.model_dump().items():
+        # Update allowed fields
+        account_dict = account_data.model_dump(exclude={'type'})  # Exclude type from update
+        for key, value in account_dict.items():
             setattr(db_account, key, value)
             
         self.db.commit()
@@ -280,6 +338,39 @@ class BookkeepingService:
         return balances
 
     # Transactions
+    def _generate_transaction_reference(self) -> str:
+        """
+        Generate the next available transaction reference number.
+        Format: TXN-YYYYMMDD-NNN where NNN is a sequential number
+        """
+        from datetime import datetime
+        
+        # Get current date
+        current_date = datetime.now()
+        date_str = current_date.strftime('%Y%m%d')
+        prefix = f'TXN-{date_str}-'
+        
+        # Get the highest number for this day
+        latest_transaction = self.db.query(models.Transaction)\
+            .filter(models.Transaction.reference_number.like(f'{prefix}%'))\
+            .order_by(models.Transaction.reference_number.desc())\
+            .first()
+            
+        if not latest_transaction or not latest_transaction.reference_number:
+            # No transactions today yet
+            next_number = 1
+        else:
+            try:
+                # Extract the number from the latest reference
+                current_number = int(latest_transaction.reference_number.split('-')[2])
+                next_number = current_number + 1
+            except (IndexError, ValueError):
+                # If there's any error parsing the existing reference, start from 1
+                next_number = 1
+                
+        # Format the new reference with leading zeros
+        return f"{prefix}{next_number:03d}"
+
     def create_transaction(self, transaction_data: models.TransactionCreate) -> models.Transaction:
         """
         Create a new transaction with associated journal entries.
@@ -295,8 +386,14 @@ class BookkeepingService:
         """
         # Create transaction
         transaction_dict = transaction_data.model_dump(exclude={'entries'})
+        
+        # Generate reference number if not provided
+        if not transaction_dict.get('reference_number'):
+            transaction_dict['reference_number'] = self._generate_transaction_reference()
+        
         db_transaction = models.Transaction(**transaction_dict)
         self.db.add(db_transaction)
+        self.db.commit()  # Commit to get the transaction ID
         
         # Create journal entries
         total_debits = Decimal('0.00')
@@ -401,7 +498,7 @@ class BookkeepingService:
 
     def get_transaction(self, transaction_id: str) -> Optional[models.Transaction]:
         """
-        Get a specific transaction by ID.
+        Get a specific transaction by ID with all related data.
         
         Args:
             transaction_id: ID of the transaction to retrieve
@@ -409,7 +506,39 @@ class BookkeepingService:
         Returns:
             Optional[Transaction]: The transaction if found, None otherwise
         """
-        return self.db.query(models.Transaction).filter(models.Transaction.id == transaction_id).first()
+        print(f"DEBUG: Fetching transaction with ID: {transaction_id}")
+        
+        # Get the transaction with all related data in a single query
+        transaction = self.db.query(models.Transaction)\
+            .options(
+                joinedload(models.Transaction.journal_entries)
+                .joinedload(models.JournalEntry.account)
+            )\
+            .filter(models.Transaction.id == transaction_id)\
+            .first()
+            
+        if not transaction:
+            print("DEBUG: Transaction not found")
+            return None
+            
+        print(f"DEBUG: Found transaction: {transaction.id}, {transaction.description}")
+        
+        # Verify all entries have their accounts loaded
+        for entry in transaction.journal_entries:
+            print(f"DEBUG: Checking entry {entry.id}")
+            if not entry.account:
+                print(f"DEBUG: Account missing for entry {entry.id}, attempting to load")
+                entry.account = self.db.query(models.Account)\
+                    .filter(models.Account.id == entry.account_id)\
+                    .first()
+                if entry.account:
+                    print(f"DEBUG: Successfully loaded account {entry.account.code} - {entry.account.name}")
+                else:
+                    print(f"DEBUG: WARNING - Could not load account {entry.account_id}")
+            else:
+                print(f"DEBUG: Account already loaded: {entry.account.code} - {entry.account.name}")
+                
+        return transaction
 
     def list_transactions(
         self,
@@ -426,7 +555,14 @@ class BookkeepingService:
         Returns:
             List[Transaction]: List of transactions matching the criteria
         """
-        query = self.db.query(models.Transaction)
+        # Get all transactions with journal entries and accounts in a single query
+        query = self.db.query(models.Transaction)\
+            .join(models.Transaction.journal_entries)\
+            .join(models.Account)\
+            .options(
+                contains_eager(models.Transaction.journal_entries)
+                .contains_eager(models.JournalEntry.account)
+            )
         
         if start_date:
             query = query.filter(models.Transaction.transaction_date >= start_date)

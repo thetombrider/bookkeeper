@@ -97,7 +97,6 @@ class AccountBase(BaseModel):
     category_id: Optional[str] = None
     name: str
     type: AccountType
-    code: str
     description: Optional[str] = None
     is_active: bool = True
 
@@ -106,6 +105,7 @@ class AccountCreate(AccountBase):
 
 class AccountResponse(AccountBase):
     id: str
+    code: str
     created_at: datetime
     updated_at: datetime
     category: Optional[AccountCategoryResponse] = None
@@ -126,6 +126,7 @@ class JournalEntryResponse(JournalEntryBase):
     transaction_id: str
     created_at: datetime
     updated_at: datetime
+    account: Optional[AccountResponse] = None
 
     class Config:
         from_attributes = True

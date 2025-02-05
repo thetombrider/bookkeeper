@@ -123,23 +123,51 @@ async def update_account_category(
     try:
         updated_category = service.update_account_category(category_id, category_data)
         if not updated_category:
-            raise HTTPException(status_code=404, detail="Account category not found")
+            raise HTTPException(
+                status_code=404,
+                detail=f"Account category with id {category_id} not found"
+            )
         return updated_category
-    except Exception as e:
+    except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"An unexpected error occurred: {str(e)}"
+        )
 
-@app.delete("/account-categories/{category_id}", status_code=204, tags=["account-categories"])
+@app.delete("/account-categories/{category_id}", tags=["account-categories"])
 async def delete_account_category(
     category_id: str,
     db: Session = Depends(get_db)
 ):
-    """Delete an account category."""
+    """
+    Delete an account category.
+    
+    If the category has associated accounts, returns a 400 error with details about which accounts
+    are preventing the deletion.
+    """
     service = BookkeepingService(db)
     try:
-        if not service.delete_account_category(category_id):
-            raise HTTPException(status_code=404, detail="Account category not found")
+        result = service.delete_account_category(category_id)
+        if not result:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Account category with id {category_id} not found"
+            )
+        return {"status": "success", "message": "Category deleted successfully"}
+    except ValueError as e:
+        print(f"ValueError in delete_account_category: {str(e)}")  # Debug log
+        raise HTTPException(
+            status_code=400,
+            detail={"message": str(e), "type": "validation_error"}
+        )
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        print(f"Unexpected error in delete_account_category: {str(e)}")  # Debug log
+        raise HTTPException(
+            status_code=500,
+            detail={"message": f"An unexpected error occurred: {str(e)}", "type": "server_error"}
+        )
 
 # Accounts Endpoints
 
@@ -162,8 +190,16 @@ async def create_account(
     service = BookkeepingService(db)
     try:
         return service.create_account(account_data)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=400,
+            detail={"message": str(e), "type": "validation_error"}
+        )
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(
+            status_code=500,
+            detail={"message": f"An unexpected error occurred: {str(e)}", "type": "server_error"}
+        )
 
 @app.put("/accounts/{account_id}", response_model=AccountResponse, tags=["accounts"])
 async def update_account(
@@ -176,12 +212,23 @@ async def update_account(
     try:
         updated_account = service.update_account(account_id, account_data)
         if not updated_account:
-            raise HTTPException(status_code=404, detail="Account not found")
+            raise HTTPException(
+                status_code=404,
+                detail={"message": f"Account with id {account_id} not found", "type": "not_found"}
+            )
         return updated_account
+    except ValueError as e:
+        raise HTTPException(
+            status_code=400,
+            detail={"message": str(e), "type": "validation_error"}
+        )
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(
+            status_code=500,
+            detail={"message": f"An unexpected error occurred: {str(e)}", "type": "server_error"}
+        )
 
-@app.delete("/accounts/{account_id}", status_code=204, tags=["accounts"])
+@app.delete("/accounts/{account_id}", tags=["accounts"])
 async def delete_account(
     account_id: str,
     db: Session = Depends(get_db)
@@ -190,9 +237,21 @@ async def delete_account(
     service = BookkeepingService(db)
     try:
         if not service.delete_account(account_id):
-            raise HTTPException(status_code=404, detail="Account not found")
+            raise HTTPException(
+                status_code=404,
+                detail={"message": f"Account with id {account_id} not found", "type": "not_found"}
+            )
+        return {"status": "success", "message": "Account deleted successfully"}
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(
+            status_code=400,
+            detail={"message": str(e), "type": "validation_error"}
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail={"message": f"An unexpected error occurred: {str(e)}", "type": "server_error"}
+        )
 
 # Transactions Endpoints
 
