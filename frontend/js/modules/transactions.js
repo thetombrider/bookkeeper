@@ -14,6 +14,18 @@ export {
 };
 
 async function loadTransactions() {
+    const transactionsList = document.getElementById('transactionsList');
+    if (!transactionsList) return;
+    
+    // Show loading state
+    transactionsList.innerHTML = `
+        <div class="table-container">
+            <div class="table-loading">
+                <div class="loading-spinner"></div>
+            </div>
+        </div>
+    `;
+    
     try {
         const response = await fetch(`${API_URL}/transactions/`);
         if (!response.ok) {
@@ -22,44 +34,155 @@ async function loadTransactions() {
         const transactions = await response.json();
         
         // Update transactions list
-        const transactionsList = document.getElementById('transactionsList');
-        if (transactionsList) {
-            transactionsList.innerHTML = generateTransactionsTable(transactions);
-        }
+        transactionsList.innerHTML = generateTransactionsTable(transactions);
+        
+        // Setup interactive features
+        setupTableSorting(transactionsList);
+        setupTableSearch(transactionsList);
+        
     } catch (error) {
         console.error('Error loading transactions:', error);
+        transactionsList.innerHTML = `
+            <div class="table-empty">
+                <p>Error loading transactions</p>
+                <p>${error.message}</p>
+            </div>
+        `;
         throw error;
     }
 }
 
 function generateTransactionsTable(transactions) {
     return `
-        <table>
-            <thead>
-                <tr>
-                    <th>Date</th>
-                    <th>Description</th>
-                    <th>Reference</th>
-                    <th>Status</th>
-                    <th>Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                ${transactions.map(transaction => `
-                    <tr data-transaction-id="${transaction.id}">
-                        <td>${transaction.transaction_date}</td>
-                        <td>${transaction.description}</td>
-                        <td>${transaction.reference_number || ''}</td>
-                        <td>${transaction.status}</td>
-                        <td class="transaction-actions">
-                            <button type="button" data-action="view" data-id="${transaction.id}">View</button>
-                            <button type="button" data-action="delete" data-id="${transaction.id}">Delete</button>
-                        </td>
-                    </tr>
-                `).join('')}
-            </tbody>
-        </table>
+        <div class="table-container">
+            <div class="table-controls">
+                <div class="table-search">
+                    <input type="text" 
+                           placeholder="Search transactions..." 
+                           id="transactionSearch"
+                           aria-label="Search transactions">
+                </div>
+                <div class="table-info">
+                    Showing ${transactions.length} transaction${transactions.length !== 1 ? 's' : ''}
+                </div>
+            </div>
+            ${transactions.length === 0 ? `
+                <div class="table-empty">
+                    <p>No transactions found</p>
+                    <p>Create a new transaction to get started</p>
+                </div>
+            ` : `
+                <table class="transactions-table">
+                    <thead>
+                        <tr>
+                            <th class="sortable" data-sort="date">Date</th>
+                            <th class="sortable" data-sort="description">Description</th>
+                            <th class="sortable" data-sort="debit">Debit Account</th>
+                            <th class="sortable" data-sort="credit">Credit Account</th>
+                            <th class="sortable" data-sort="status">Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${transactions.map(transaction => {
+                            // Find debit and credit accounts
+                            const debitEntry = transaction.journal_entries.find(entry => entry.debit_amount > 0);
+                            const creditEntry = transaction.journal_entries.find(entry => entry.credit_amount > 0);
+                            
+                            // Format account names
+                            const debitAccount = debitEntry ? `${debitEntry.account.code} - ${debitEntry.account.name}` : '';
+                            const creditAccount = creditEntry ? `${creditEntry.account.code} - ${creditEntry.account.name}` : '';
+                            
+                            return `
+                                <tr data-transaction-id="${transaction.id}">
+                                    <td>${transaction.transaction_date}</td>
+                                    <td title="${transaction.description}">${transaction.description}</td>
+                                    <td title="${debitAccount}">${debitAccount}</td>
+                                    <td title="${creditAccount}">${creditAccount}</td>
+                                    <td>
+                                        <span class="status-badge ${transaction.status.toLowerCase()}">
+                                            ${transaction.status}
+                                        </span>
+                                    </td>
+                                    <td class="transaction-actions">
+                                        <button type="button" data-action="view" data-id="${transaction.id}">View</button>
+                                        <button type="button" data-action="delete" data-id="${transaction.id}">Delete</button>
+                                    </td>
+                                </tr>
+                            `;
+                        }).join('')}
+                    </tbody>
+                </table>
+            `}
+        </div>
     `;
+}
+
+// Add sorting functionality
+function setupTableSorting(container) {
+    const headers = container.querySelectorAll('th.sortable');
+    headers.forEach(header => {
+        header.addEventListener('click', () => {
+            const sortKey = header.dataset.sort;
+            const isAsc = !header.classList.contains('sort-asc');
+            
+            // Remove sort classes from all headers
+            headers.forEach(h => {
+                h.classList.remove('sort-asc', 'sort-desc');
+            });
+            
+            // Add sort class to clicked header
+            header.classList.add(isAsc ? 'sort-asc' : 'sort-desc');
+            
+            // Sort the table
+            const tbody = container.querySelector('tbody');
+            const rows = Array.from(tbody.querySelectorAll('tr'));
+            
+            rows.sort((a, b) => {
+                let aVal = a.children[Array.from(headers).indexOf(header)].textContent;
+                let bVal = b.children[Array.from(headers).indexOf(header)].textContent;
+                
+                if (sortKey === 'date') {
+                    aVal = new Date(aVal);
+                    bVal = new Date(bVal);
+                }
+                
+                if (aVal < bVal) return isAsc ? -1 : 1;
+                if (aVal > bVal) return isAsc ? 1 : -1;
+                return 0;
+            });
+            
+            // Update the table
+            rows.forEach(row => tbody.appendChild(row));
+        });
+    });
+}
+
+// Add search functionality
+function setupTableSearch(container) {
+    const searchInput = container.querySelector('#transactionSearch');
+    if (!searchInput) return;
+    
+    searchInput.addEventListener('input', (e) => {
+        const searchTerm = e.target.value.toLowerCase();
+        const rows = container.querySelectorAll('tbody tr');
+        
+        rows.forEach(row => {
+            const text = Array.from(row.children)
+                .map(cell => cell.textContent)
+                .join(' ')
+                .toLowerCase();
+            
+            row.style.display = text.includes(searchTerm) ? '' : 'none';
+        });
+        
+        // Update count
+        const visibleRows = Array.from(rows).filter(row => row.style.display !== 'none');
+        const info = container.querySelector('.table-info');
+        if (info) {
+            info.textContent = `Showing ${visibleRows.length} transaction${visibleRows.length !== 1 ? 's' : ''}`;
+        }
+    });
 }
 
 function addJournalEntryRow() {
