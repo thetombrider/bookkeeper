@@ -1,4 +1,5 @@
 import { loadCategories, createCategory, handleEditCategory, handleDeleteCategory } from '../modules/categories.js';
+import { showErrorMessage } from '../modules/modal.js';
 
 document.addEventListener('DOMContentLoaded', async () => {
     try {
@@ -18,7 +19,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     await createCategory(event);
                 } catch (error) {
                     console.error('Error handling category:', error);
-                    alert('Error: ' + error.message);
+                    showErrorMessage('Error: ' + error.message);
                 }
             });
         }
@@ -49,6 +50,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     } catch (error) {
         console.error('Error initializing categories:', error);
-        alert('Error loading categories. Please refresh the page.');
+        showErrorMessage('Error loading categories. Please refresh the page.');
     }
 }); 

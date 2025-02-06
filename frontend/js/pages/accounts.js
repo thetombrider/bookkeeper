@@ -1,5 +1,6 @@
 import { loadAccounts, createAccount, updateAccount } from '../modules/accounts.js';
 import { updateCategoryDropdown } from '../modules/categories.js';
+import { showSuccessMessage, showErrorMessage } from '../modules/modal.js';
 
 document.addEventListener('DOMContentLoaded', async () => {
     try {
@@ -55,21 +56,21 @@ document.addEventListener('DOMContentLoaded', async () => {
                         typeSelect.disabled = false;
                         categorySelect.disabled = true;
                         
-                        alert('Account updated successfully!');
+                        showSuccessMessage('Account updated successfully!');
                     } else {
                         await createAccount(accountData);
                         accountForm.reset();
                         document.getElementById('accountCategory').disabled = true;
-                        alert('Account created successfully!');
+                        showSuccessMessage('Account created successfully!');
                     }
                 } catch (error) {
                     console.error('Error handling account:', error);
-                    alert('Error: ' + error.message);
+                    showErrorMessage('Error: ' + error.message);
                 }
             });
         }
     } catch (error) {
         console.error('Error initializing accounts:', error);
-        alert('Error loading accounts. Please refresh the page.');
+        showErrorMessage('Error loading accounts. Please refresh the page.');
     }
 }); 

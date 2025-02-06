@@ -1,5 +1,6 @@
 import { API_URL, formatCurrency } from './config.js';
 import { loadCategories, updateCategoryDropdown } from './categories.js';
+import { showConfirmDialog, showSuccessMessage, showErrorMessage, createModal, showModal } from './modal.js';
 
 export let allAccounts = [];
 let accountStartingBalances = new Set(); // Track accounts with starting balances
@@ -412,139 +413,94 @@ async function handleEditAccount(id) {
 }
 
 async function handleDeleteAccount(id) {
-    if (!confirm('Are you sure you want to delete this account?')) {
-        return;
-    }
+    const account = allAccounts.find(a => a.id === id);
+    if (!account) return;
 
-    try {
-        await deleteAccount(id);
-        alert('Account deleted successfully!');
-        
-        // Remove the account from allAccounts array
-        allAccounts = allAccounts.filter(account => account.id !== id);
-        
-        // Update the UI with the filtered accounts
-        const accountsList = document.getElementById('accountsList');
-        if (accountsList) {
-            updateAccountsList(allAccounts);
-        }
-    } catch (error) {
-        console.error('Error deleting account:', error);
-        if (error.message.includes('not found') || error.message.includes('already deleted')) {
-            alert('Account has already been deleted.');
-            // Refresh the accounts list from server
-            const response = await fetch(`${API_URL}/accounts/`);
-            if (response.ok) {
-                allAccounts = await response.json();
+    if (await showConfirmDialog(`Are you sure you want to delete the account "${account.name}"?`)) {
+        try {
+            await deleteAccount(id);
+            showSuccessMessage('Account deleted successfully!');
+            
+            // Remove the account from allAccounts array
+            allAccounts = allAccounts.filter(account => account.id !== id);
+            
+            // Update the UI with the filtered accounts
+            const accountsList = document.getElementById('accountsList');
+            if (accountsList) {
                 updateAccountsList(allAccounts);
             }
-        } else {
-            alert('Error deleting account: ' + error.message);
+        } catch (error) {
+            console.error('Error deleting account:', error);
+            showErrorMessage('Error deleting account: ' + error.message);
         }
     }
 }
 
 async function handleStartingBalance(accountId) {
     const account = allAccounts.find(a => a.id === accountId);
-    if (!account || !canHaveStartingBalance(account)) return;
+    if (!account) return;
 
-    const amount = prompt(`Enter starting balance for ${account.name}:`);
-    if (amount === null) return; // User cancelled
+    // Create modal content
+    const content = document.createElement('div');
+    content.innerHTML = `
+        <div class="form-group">
+            <label for="startingBalance">Starting Balance for ${account.name}:</label>
+            <input type="number" id="startingBalance" step="0.01" required>
+        </div>
+    `;
 
-    // Parse and validate the amount
-    const parsedAmount = parseFloat(amount.replace(/[^0-9.-]+/g, ''));
-    if (isNaN(parsedAmount)) {
-        alert('Please enter a valid number');
-        return;
-    }
+    const modal = createModal('edit', 'Create Starting Balance');
+    const confirmBtn = modal.querySelector('.btn-confirm');
+    
+    // Add event listener for the confirm button
+    confirmBtn.addEventListener('click', async () => {
+        const balanceInput = modal.querySelector('#startingBalance');
+        const balance = parseFloat(balanceInput.value);
+        
+        if (isNaN(balance)) {
+            showErrorMessage('Please enter a valid number for the starting balance.');
+            return;
+        }
 
-    // Determine if this should be a debit or credit based on account type
-    let debitAmount = 0;
-    let creditAmount = 0;
-
-    // For assets, positive balance is a debit
-    // For liabilities and equity, positive balance is a credit
-    if (account.type === 'asset') {
-        debitAmount = parsedAmount > 0 ? Math.abs(parsedAmount) : 0;
-        creditAmount = parsedAmount < 0 ? Math.abs(parsedAmount) : 0;
-    } else {
-        debitAmount = parsedAmount < 0 ? Math.abs(parsedAmount) : 0;
-        creditAmount = parsedAmount > 0 ? Math.abs(parsedAmount) : 0;
-    }
-
-    // Find or create the "Saldi di Apertura" equity account
-    let equityAccount = allAccounts.find(a => 
-        a.type === 'equity' && 
-        a.name === 'Saldi di Apertura'
-    );
-
-    if (!equityAccount) {
         try {
-            const response = await fetch(`${API_URL}/accounts/`, {
+            // Create starting balance transaction
+            const transactionData = {
+                transaction_date: new Date().toISOString().split('T')[0],
+                description: `Saldo di Apertura - ${account.name}`,
+                entries: [
+                    {
+                        account_id: accountId,
+                        debit_amount: balance > 0 ? Math.abs(balance) : 0,
+                        credit_amount: balance < 0 ? Math.abs(balance) : 0
+                    },
+                    {
+                        account_id: allAccounts.find(a => a.name === 'Saldi di Apertura')?.id,
+                        debit_amount: balance < 0 ? Math.abs(balance) : 0,
+                        credit_amount: balance > 0 ? Math.abs(balance) : 0
+                    }
+                ]
+            };
+
+            const response = await fetch(`${API_URL}/transactions/`, {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json'
+                    'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({
-                    name: 'Saldi di Apertura',
-                    type: 'equity',
-                    description: 'Account for opening balances'
-                })
+                body: JSON.stringify(transactionData)
             });
 
             if (!response.ok) {
-                throw new Error('Failed to create Saldi di Apertura account');
+                const errorData = await response.json();
+                throw new Error(errorData.detail || 'Error creating starting balance');
             }
 
-            equityAccount = await response.json();
-            allAccounts.push(equityAccount);
+            showSuccessMessage('Starting balance created successfully!');
+            await loadAccounts(); // Reload to update UI
         } catch (error) {
-            console.error('Error creating Saldi di Apertura account:', error);
-            alert('Failed to create Saldi di Apertura account');
-            return;
+            console.error('Error creating starting balance:', error);
+            showErrorMessage('Error creating starting balance: ' + error.message);
         }
-    }
+    });
 
-    try {
-        const transactionData = {
-            transaction_date: new Date().toISOString().split('T')[0],
-            description: `Saldo di Apertura - ${account.name}`,
-            entries: [
-                {
-                    account_id: account.id,
-                    debit_amount: debitAmount,
-                    credit_amount: creditAmount
-                },
-                {
-                    account_id: equityAccount.id,
-                    debit_amount: creditAmount,
-                    credit_amount: debitAmount
-                }
-            ]
-        };
-
-        const response = await fetch(`${API_URL}/transactions/`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json'
-            },
-            body: JSON.stringify(transactionData)
-        });
-
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.detail || 'Failed to create starting balance');
-        }
-
-        alert('Starting balance created successfully!');
-        
-        // Update the tracking of starting balances and refresh the UI
-        accountStartingBalances.add(accountId);
-        updateAccountsList(allAccounts);
-    } catch (error) {
-        console.error('Error creating starting balance:', error);
-        alert('Error creating starting balance: ' + error.message);
-    }
+    showModal(modal);
 } 
