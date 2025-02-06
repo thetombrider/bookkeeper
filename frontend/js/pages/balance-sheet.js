@@ -10,7 +10,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         const dateInput = document.getElementById('balanceSheetDate');
 
         if (refreshBtn) {
-            refreshBtn.addEventListener('click', async () => {
+            // Remove any existing event listeners by cloning and replacing
+            const newRefreshBtn = refreshBtn.cloneNode(true);
+            refreshBtn.parentNode.replaceChild(newRefreshBtn, refreshBtn);
+
+            newRefreshBtn.addEventListener('click', async () => {
                 const date = dateInput.value;
                 await loadBalanceSheet(date);
             });
@@ -18,14 +22,18 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         // Set up event listener for date change
         if (dateInput) {
-            dateInput.addEventListener('change', async () => {
-                await loadBalanceSheet(dateInput.value);
+            // Remove any existing event listeners by cloning and replacing
+            const newDateInput = dateInput.cloneNode(true);
+            dateInput.parentNode.replaceChild(newDateInput, dateInput);
+
+            newDateInput.addEventListener('change', async () => {
+                await loadBalanceSheet(newDateInput.value);
             });
 
             // Set default date to today if not set
-            if (!dateInput.value) {
-                dateInput.value = new Date().toISOString().split('T')[0];
-                await loadBalanceSheet(dateInput.value);
+            if (!newDateInput.value) {
+                newDateInput.value = new Date().toISOString().split('T')[0];
+                await loadBalanceSheet(newDateInput.value);
             }
         }
     } catch (error) {

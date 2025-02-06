@@ -145,21 +145,20 @@ export function updateCategoryDropdown() {
     }
     
     const isEditMode = accountType ? accountType.disabled : false;
-    const selectedType = accountType ? accountType.value : null;
     
-    if (!selectedType && !isEditMode) {
+    // In edit mode or when account type is selected, enable and populate the category dropdown
+    if (isEditMode || (accountType && accountType.value)) {
+        categorySelect.innerHTML = `
+            <option value="">Select a category</option>
+            ${allCategories.map(category => `
+                <option value="${category.id}">${category.name}</option>
+            `).join('')}
+        `;
+        categorySelect.disabled = false;
+    } else {
         categorySelect.disabled = true;
         categorySelect.innerHTML = '<option value="">Select account type first</option>';
-        return;
     }
-    
-    categorySelect.innerHTML = `
-        <option value="">Select a category</option>
-        ${allCategories.map(category => `
-            <option value="${category.id}">${category.name}</option>
-        `).join('')}
-    `;
-    categorySelect.disabled = false;
 }
 
 export async function createCategory(event) {

@@ -9,13 +9,20 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Set up account type change handler
         const accountTypeSelect = document.getElementById('accountType');
         if (accountTypeSelect) {
-            accountTypeSelect.addEventListener('change', updateCategoryDropdown);
+            // Remove any existing event listeners by cloning and replacing
+            const newAccountTypeSelect = accountTypeSelect.cloneNode(true);
+            accountTypeSelect.parentNode.replaceChild(newAccountTypeSelect, accountTypeSelect);
+            newAccountTypeSelect.addEventListener('change', updateCategoryDropdown);
         }
 
         // Set up form submission handler
         const accountForm = document.getElementById('accountForm');
         if (accountForm) {
-            accountForm.addEventListener('submit', async (event) => {
+            // Remove any existing event listeners by cloning and replacing
+            const newAccountForm = accountForm.cloneNode(true);
+            accountForm.parentNode.replaceChild(newAccountForm, accountForm);
+            
+            newAccountForm.addEventListener('submit', async (event) => {
                 event.preventDefault();
                 try {
                     const accountData = {
@@ -25,18 +32,18 @@ document.addEventListener('DOMContentLoaded', async () => {
                         description: document.getElementById('accountDescription').value
                     };
                     
-                    const editId = accountForm.dataset.editId;
+                    const editId = newAccountForm.dataset.editId;
                     if (editId) {
                         await updateAccount(editId, accountData);
                         alert('Account updated successfully!');
-                        accountForm.dataset.editId = ''; // Clear edit mode
+                        newAccountForm.dataset.editId = ''; // Clear edit mode
                         document.querySelector('button[type="submit"]').textContent = 'Create Account';
                     } else {
                         await createAccount(accountData);
                         alert('Account created successfully!');
                     }
                     
-                    accountForm.reset();
+                    newAccountForm.reset();
                     document.getElementById('accountCategory').disabled = true;
                     document.getElementById('accountType').disabled = false;
                 } catch (error) {

@@ -22,13 +22,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Set up event listeners
     if (startDateInput && endDateInput) {
-        [startDateInput, endDateInput].forEach(input => {
+        // Remove any existing event listeners by cloning and replacing
+        const newStartDateInput = startDateInput.cloneNode(true);
+        const newEndDateInput = endDateInput.cloneNode(true);
+        
+        startDateInput.parentNode.replaceChild(newStartDateInput, startDateInput);
+        endDateInput.parentNode.replaceChild(newEndDateInput, endDateInput);
+
+        [newStartDateInput, newEndDateInput].forEach(input => {
             input.addEventListener('change', refreshIncomeStatement);
         });
     }
 
     if (refreshBtn) {
-        refreshBtn.addEventListener('click', refreshIncomeStatement);
+        // Remove any existing event listeners by cloning and replacing
+        const newRefreshBtn = refreshBtn.cloneNode(true);
+        refreshBtn.parentNode.replaceChild(newRefreshBtn, refreshBtn);
+
+        newRefreshBtn.addEventListener('click', refreshIncomeStatement);
     }
 
     // Set default dates if none are set
