@@ -59,8 +59,17 @@ async function loadTransactions() {
 function updateTransactionsTable() {
     const transactionsList = document.getElementById('transactionsList');
     if (!transactionsList) return;
-
+    
+    console.log('Updating table with sort:', currentSort); // Debug log
+    
+    // Store current scroll position
+    const scrollPosition = window.scrollY;
+    
+    // Update table content
     transactionsList.innerHTML = generateTransactionsTable(cachedTransactions);
+    
+    // Restore scroll position
+    window.scrollTo(0, scrollPosition);
     
     // Setup interactive features
     setupTableSorting(transactionsList);
@@ -153,7 +162,7 @@ function formatDate(dateString) {
 
 // Format multiple accounts for display
 function formatAccountsList(entries) {
-    if (entries.length === 0) return '';
+    if (!entries || entries.length === 0) return '-';
     if (entries.length === 1) {
         return `${entries[0].account.code} - ${entries[0].account.name}`;
     }
@@ -163,6 +172,8 @@ function formatAccountsList(entries) {
 
 // Sort transactions based on current sort state
 function sortTransactions(transactions, sort) {
+    console.log('Sorting by:', sort.column, 'Direction:', sort.direction); // Debug log
+    
     return [...transactions].sort((a, b) => {
         let aVal, bVal;
 
@@ -209,7 +220,7 @@ function sortTransactions(transactions, sort) {
         if (sort.column !== 'date') {
             const aDate = new Date(a.transaction_date).getTime();
             const bDate = new Date(b.transaction_date).getTime();
-            return (bDate - aDate) * direction; // Keep same direction as primary sort
+            return (bDate - aDate) * direction;
         }
         return 0;
     });
@@ -218,9 +229,14 @@ function sortTransactions(transactions, sort) {
 // Setup sorting functionality
 function setupTableSorting(container) {
     const headers = container.querySelectorAll('th.sortable');
+    
     headers.forEach(header => {
-        header.addEventListener('click', () => {
+        header.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            
             const sortKey = header.dataset.sort;
+            console.log('Sort clicked:', sortKey); // Debug log
             
             // Update sort state
             if (currentSort.column === sortKey) {
@@ -231,9 +247,16 @@ function setupTableSorting(container) {
                 currentSort.column = sortKey;
                 currentSort.direction = 'desc';
             }
-
+            
+            console.log('New sort state:', currentSort); // Debug log
+            
             // Update table with new sort
-            updateTransactionsTable();
+            const transactionsList = document.getElementById('transactionsList');
+            if (transactionsList) {
+                transactionsList.innerHTML = generateTransactionsTable(cachedTransactions);
+                setupTableSorting(transactionsList);
+                setupTableSearch(transactionsList);
+            }
         });
     });
 }
@@ -387,22 +410,21 @@ async function viewTransaction(id) {
         // Create modal content
         const detailsHtml = `
             <div class="transaction-detail">
-                <h4>Basic Information</h4>
                 <div class="transaction-detail-row">
-                    <span>Date:</span>
-                    <span>${transaction.transaction_date}</span>
+                    <span>Date</span>
+                    <span>${formatDate(transaction.transaction_date)}</span>
                 </div>
                 <div class="transaction-detail-row">
-                    <span>Description:</span>
+                    <span>Description</span>
                     <span>${transaction.description}</span>
                 </div>
                 <div class="transaction-detail-row">
-                    <span>Reference:</span>
-                    <span>${transaction.reference_number || '-'}</span>
-                </div>
-                <div class="transaction-detail-row">
-                    <span>Status:</span>
-                    <span>${transaction.status}</span>
+                    <span>Status</span>
+                    <span>
+                        <span class="status-badge ${transaction.status.toLowerCase()}">
+                            ${transaction.status}
+                        </span>
+                    </span>
                 </div>
             </div>
 
@@ -429,16 +451,16 @@ async function viewTransaction(id) {
                         }).join('')}
                     </tbody>
                 </table>
-            </div>
 
-            <div class="transaction-totals">
-                <div class="transaction-total-row">
-                    <span>Total Debits:</span>
-                    <span>${formatCurrency(transaction.journal_entries.reduce((sum, entry) => sum + parseFloat(entry.debit_amount), 0))}</span>
-                </div>
-                <div class="transaction-total-row">
-                    <span>Total Credits:</span>
-                    <span>${formatCurrency(transaction.journal_entries.reduce((sum, entry) => sum + parseFloat(entry.credit_amount), 0))}</span>
+                <div class="transaction-totals">
+                    <div class="transaction-total-row">
+                        <span>Total Debits:</span>
+                        <span>${formatCurrency(transaction.journal_entries.reduce((sum, entry) => sum + parseFloat(entry.debit_amount), 0))}</span>
+                    </div>
+                    <div class="transaction-total-row">
+                        <span>Total Credits:</span>
+                        <span>${formatCurrency(transaction.journal_entries.reduce((sum, entry) => sum + parseFloat(entry.credit_amount), 0))}</span>
+                    </div>
                 </div>
             </div>
         `;

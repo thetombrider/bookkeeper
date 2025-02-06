@@ -225,30 +225,56 @@
 .transaction-entries table {
     width: 100%;
     border-collapse: collapse;
-    margin-top: 10px;
+    margin: 1rem 0;
+    table-layout: fixed;
 }
 
 .transaction-entries th,
 .transaction-entries td {
-    padding: 12px;
+    padding: 0.75rem;
     text-align: left;
-    border-bottom: 1px solid #eee;
+    border-bottom: 1px solid #dee2e6;
+    vertical-align: middle;
 }
 
 .transaction-entries th {
     background-color: #f8f9fa;
     font-weight: 600;
+    color: #495057;
 }
 
-.transaction-totals {
-    margin-top: 20px;
-    padding-top: 15px;
-    border-top: 2px solid #ddd;
+/* Column widths and alignment */
+.transaction-entries th:first-child,
+.transaction-entries td:first-child {
+    width: 60%;
+    text-align: left;
 }
 
+.transaction-entries th:nth-child(2),
+.transaction-entries td:nth-child(2),
+.transaction-entries th:nth-child(3),
+.transaction-entries td:nth-child(3) {
+    width: 20%;
+    text-align: right;
+    font-family: monospace;
+    white-space: nowrap;
+}
+
+/* Transaction totals alignment */
 .transaction-total-row {
     display: flex;
-    justify-content: space-between;
-    padding: 8px 0;
+    justify-content: flex-end;
+    gap: 2rem;
     font-weight: 600;
+    padding: 0.5rem 0;
+}
+
+.transaction-total-row span:first-child {
+    text-align: right;
+}
+
+.transaction-total-row span:last-child {
+    font-family: monospace;
+    min-width: 120px;
+    text-align: right;
 } 
