@@ -1,4 +1,12 @@
-import { loadTransactions, addJournalEntryRow, createTransaction, updateTotals } from '../modules/transactions.js';
+import { 
+    loadTransactions, 
+    addJournalEntryRow, 
+    createTransaction, 
+    updateTotals, 
+    removeJournalEntry, 
+    viewTransaction, 
+    deleteTransaction 
+} from '../modules/transactions.js';
 import { loadAccounts } from '../modules/accounts.js';
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -10,13 +18,34 @@ document.addEventListener('DOMContentLoaded', async () => {
         ]);
 
         // Set up add journal entry button
-        const addEntryBtn = document.querySelector('[data-action="add-journal-entry"]');
+        const addEntryBtn = document.getElementById('addEntryButton');
         if (addEntryBtn) {
             addEntryBtn.addEventListener('click', addJournalEntryRow);
         }
 
         // Add initial journal entry row
         addJournalEntryRow();
+
+        // Set up event delegation for journal entries list
+        const journalEntriesList = document.querySelector('.journal-entries-list');
+        if (journalEntriesList) {
+            journalEntriesList.addEventListener('click', (e) => {
+                const removeButton = e.target.closest('.remove-entry');
+                if (removeButton) {
+                    const row = removeButton.closest('.journal-entry-row');
+                    if (row) {
+                        removeJournalEntry(row);
+                    }
+                }
+            });
+
+            journalEntriesList.addEventListener('input', (e) => {
+                const input = e.target;
+                if (input.matches('.journal-entry-debit, .journal-entry-credit')) {
+                    updateTotals();
+                }
+            });
+        }
 
         // Set up form submission handler
         const transactionForm = document.getElementById('transactionForm');
@@ -39,6 +68,15 @@ document.addEventListener('DOMContentLoaded', async () => {
                         }
                     });
 
+                    // Validate that debits equal credits
+                    const totalDebits = entries.reduce((sum, entry) => sum + entry.debit_amount, 0);
+                    const totalCredits = entries.reduce((sum, entry) => sum + entry.credit_amount, 0);
+                    
+                    if (Math.abs(totalDebits - totalCredits) > 0.01) {
+                        alert('Total debits must equal total credits');
+                        return;
+                    }
+
                     const transactionData = {
                         transaction_date: document.getElementById('transactionDate').value,
                         description: document.getElementById('transactionDescription').value,
@@ -46,6 +84,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     };
 
                     await createTransaction(transactionData);
+                    alert('Transaction created successfully!');
                     transactionForm.reset();
                     document.querySelector('.journal-entries-list').innerHTML = '';
                     addJournalEntryRow();
@@ -55,6 +94,30 @@ document.addEventListener('DOMContentLoaded', async () => {
                     alert('Error creating transaction: ' + error.message);
                 }
             });
+        }
+
+        // Set up event delegation for transactions list
+        const transactionsList = document.getElementById('transactionsList');
+        if (transactionsList) {
+            transactionsList.addEventListener('click', async (e) => {
+                const button = e.target.closest('button[data-action]');
+                if (!button) return;
+                
+                const action = button.dataset.action;
+                const id = button.dataset.id;
+                
+                if (action === 'view') {
+                    await viewTransaction(id);
+                } else if (action === 'delete') {
+                    await deleteTransaction(id);
+                }
+            });
+        }
+
+        // Set today's date as default for new transactions
+        const dateInput = document.getElementById('transactionDate');
+        if (dateInput && !dateInput.value) {
+            dateInput.value = new Date().toISOString().split('T')[0];
         }
     } catch (error) {
         console.error('Error initializing transactions:', error);

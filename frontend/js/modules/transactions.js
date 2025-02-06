@@ -1,14 +1,42 @@
 import { API_URL, formatCurrency, parseDecimalNumber } from './config.js';
 import { allAccounts, loadAccounts } from './accounts.js';
 
-export async function loadTransactions() {
+// Export all functions that are used externally
+export {
+    loadTransactions,
+    addJournalEntryRow,
+    removeJournalEntry,
+    updateTotals,
+    createTransaction,
+    viewTransaction,
+    deleteTransaction
+};
+
+async function loadTransactions() {
     try {
         const response = await fetch(`${API_URL}/transactions/`);
         const transactions = await response.json();
         
         // Update transactions list
         const transactionsList = document.getElementById('transactionsList');
-        transactionsList.innerHTML = generateTransactionsTable(transactions);
+        if (transactionsList) {
+            transactionsList.innerHTML = generateTransactionsTable(transactions);
+            
+            // Add event listeners for transaction actions
+            transactionsList.addEventListener('click', async (e) => {
+                const button = e.target.closest('button[data-action]');
+                if (!button) return;
+                
+                const action = button.dataset.action;
+                const id = button.dataset.id;
+                
+                if (action === 'view') {
+                    await viewTransaction(id);
+                } else if (action === 'delete') {
+                    await deleteTransaction(id);
+                }
+            });
+        }
     } catch (error) {
         console.error('Error loading transactions:', error);
         throw error;
@@ -34,9 +62,9 @@ function generateTransactionsTable(transactions) {
                         <td>${transaction.description}</td>
                         <td>${transaction.reference_number || ''}</td>
                         <td>${transaction.status}</td>
-                        <td>
-                            <button onclick="viewTransaction('${transaction.id}')">View</button>
-                            <button onclick="deleteTransaction('${transaction.id}')">Delete</button>
+                        <td class="transaction-actions">
+                            <button type="button" data-action="view" data-id="${transaction.id}">View</button>
+                            <button type="button" data-action="delete" data-id="${transaction.id}">Delete</button>
                         </td>
                     </tr>
                 `).join('')}
@@ -45,13 +73,21 @@ function generateTransactionsTable(transactions) {
     `;
 }
 
-export async function addJournalEntryRow() {
+function addJournalEntryRow() {
     // Ensure accounts are loaded
     if (!allAccounts || allAccounts.length === 0) {
-        await loadAccounts();
+        loadAccounts().then(() => {
+            createJournalEntryRow();
+        });
+    } else {
+        createJournalEntryRow();
     }
+}
 
+function createJournalEntryRow() {
     const entriesList = document.querySelector('.journal-entries-list');
+    if (!entriesList) return;
+
     const newRow = document.createElement('div');
     newRow.className = 'journal-entry-row';
     newRow.innerHTML = `
@@ -64,14 +100,12 @@ export async function addJournalEntryRow() {
         <input type="number" 
                step="0.01" 
                placeholder="0,00" 
-               class="journal-entry-debit" 
-               onchange="updateTotals()">
+               class="journal-entry-debit">
         <input type="number" 
                step="0.01" 
                placeholder="0,00" 
-               class="journal-entry-credit" 
-               onchange="updateTotals()">
-        <button type="button" onclick="removeJournalEntry(this)" title="Remove entry">
+               class="journal-entry-credit">
+        <button type="button" class="remove-entry" title="Remove entry">
             <span>×</span>
         </button>
     `;
@@ -80,12 +114,12 @@ export async function addJournalEntryRow() {
     updateTotals();
 }
 
-export function removeJournalEntry(button) {
-    button.closest('.journal-entry-row').remove();
+function removeJournalEntry(row) {
+    row.remove();
     updateTotals();
 }
 
-export function updateTotals() {
+function updateTotals() {
     let totalDebits = 0;
     let totalCredits = 0;
     
@@ -106,7 +140,7 @@ export function updateTotals() {
     document.getElementById('total-credits').style.color = totalsMatch ? '#333' : '#dc3545';
 }
 
-export async function createTransaction(transactionData) {
+async function createTransaction(transactionData) {
     try {
         const response = await fetch(`${API_URL}/transactions/`, {
             method: 'POST',
@@ -131,20 +165,28 @@ export async function createTransaction(transactionData) {
     }
 }
 
-export async function getTransaction(id) {
+async function viewTransaction(id) {
     try {
         const response = await fetch(`${API_URL}/transactions/${id}`);
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
-        return await response.json();
+        const transaction = await response.json();
+        
+        // For now, just show the transaction details in an alert
+        // In a real application, you might want to show this in a modal or dedicated view
+        alert(JSON.stringify(transaction, null, 2));
     } catch (error) {
         console.error('Error fetching transaction:', error);
-        throw error;
+        alert('Error viewing transaction details');
     }
 }
 
-export async function deleteTransaction(id) {
+async function deleteTransaction(id) {
+    if (!confirm('Are you sure you want to delete this transaction?')) {
+        return;
+    }
+
     try {
         const response = await fetch(`${API_URL}/transactions/${id}`, {
             method: 'DELETE'
@@ -155,9 +197,9 @@ export async function deleteTransaction(id) {
         }
         
         await loadTransactions();
-        return true;
+        alert('Transaction deleted successfully');
     } catch (error) {
         console.error('Error deleting transaction:', error);
-        throw error;
+        alert('Error deleting transaction');
     }
-} 
+}

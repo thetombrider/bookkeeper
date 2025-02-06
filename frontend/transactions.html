@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Transactions - Personal Finance Bookkeeper</title>
     <link rel="stylesheet" href="/styles.css">
+    <link rel="icon" href="data:,">
 </head>
 <body>
     <nav>
@@ -41,7 +42,7 @@
                     </div>
 
                     <div class="journal-actions">
-                        <button type="button" data-action="add-journal-entry">
+                        <button type="button" id="addEntryButton">
                             <span>Add Entry</span>
                         </button>
                         <button type="submit" class="create-transaction">
@@ -68,7 +69,9 @@
 
             <div class="list-container">
                 <h3>Recent Transactions</h3>
-                <div id="transactionsList"></div>
+                <div id="transactionsList" class="transactions-list">
+                    <!-- Transactions will be loaded here dynamically -->
+                </div>
             </div>
         </section>
     </main>
