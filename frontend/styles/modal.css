@@ -69,53 +69,49 @@
     line-height: 1;
     padding: 0.25rem;
     cursor: pointer;
-    color: #666;
-}
-
-.close-modal:hover {
-    color: #333;
-    background: none;
 }
 
 /* Modal Variants */
 /* Delete Modal */
 .modal-delete .modal-header {
-    background-color: #dc3545;
-    color: white;
+    background-color: #f8d7da;
+    color: #842029;
 }
 
 .modal-delete .close-modal {
-    color: rgba(255, 255, 255, 0.8);
+    color: #842029;
 }
 
 .modal-delete .close-modal:hover {
-    color: white;
+    color: #6b1a21;
 }
 
 .modal-delete .modal-footer .btn-confirm {
     background-color: #dc3545;
+    color: white;
 }
 
 .modal-delete .modal-footer .btn-confirm:hover {
-    background-color: #c82333;
+    background-color: #bb2d3b;
 }
 
 /* Edit Modal */
 .modal-edit .modal-header {
-    background-color: #6c757d;
-    color: white;
+    background-color: #e9ecef;
+    color: #495057;
 }
 
 .modal-edit .close-modal {
-    color: rgba(255, 255, 255, 0.8);
+    color: #495057;
 }
 
 .modal-edit .close-modal:hover {
-    color: white;
+    color: #343a40;
 }
 
 .modal-edit .modal-footer .btn-confirm {
     background-color: #6c757d;
+    color: white;
 }
 
 .modal-edit .modal-footer .btn-confirm:hover {
@@ -124,29 +120,31 @@
 
 /* Success/Create Modal */
 .modal-success .modal-header {
-    background-color: #28a745;
-    color: white;
+    background-color: #d1e7dd;
+    color: #0f5132;
 }
 
 .modal-success .close-modal {
-    color: rgba(255, 255, 255, 0.8);
+    color: #0f5132;
 }
 
 .modal-success .close-modal:hover {
-    color: white;
+    color: #0a3622;
 }
 
 .modal-success .modal-footer .btn-confirm {
-    background-color: #28a745;
+    background-color: #198754;
+    color: white;
 }
 
 .modal-success .modal-footer .btn-confirm:hover {
-    background-color: #218838;
+    background-color: #157347;
 }
 
 /* Modal Buttons */
 .modal-footer .btn-cancel {
     background-color: #6c757d;
+    color: white;
 }
 
 .modal-footer .btn-cancel:hover {
@@ -160,11 +158,11 @@
 }
 
 .modal-message.warning {
-    color: #dc3545;
+    color: #842029;
 }
 
 .modal-message.success {
-    color: #28a745;
+    color: #0f5132;
 }
 
 /* Modal Form Styles */

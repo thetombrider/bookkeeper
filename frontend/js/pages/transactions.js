@@ -8,6 +8,7 @@ import {
     deleteTransaction 
 } from '../modules/transactions.js';
 import { loadAccounts } from '../modules/accounts.js';
+import { showConfirmDialog, showSuccessMessage, showErrorMessage } from '../modules/modal.js';
 
 document.addEventListener('DOMContentLoaded', async () => {
     try {
@@ -73,7 +74,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     const totalCredits = entries.reduce((sum, entry) => sum + entry.credit_amount, 0);
                     
                     if (Math.abs(totalDebits - totalCredits) > 0.01) {
-                        alert('Total debits must equal total credits');
+                        showErrorMessage('Total debits must equal total credits');
                         return;
                     }
 
@@ -84,14 +85,14 @@ document.addEventListener('DOMContentLoaded', async () => {
                     };
 
                     await createTransaction(transactionData);
-                    alert('Transaction created successfully!');
+                    showSuccessMessage('Transaction created successfully!');
                     transactionForm.reset();
                     document.querySelector('.journal-entries-list').innerHTML = '';
                     addJournalEntryRow();
                     updateTotals();
                 } catch (error) {
                     console.error('Error creating transaction:', error);
-                    alert('Error creating transaction: ' + error.message);
+                    showErrorMessage('Error creating transaction: ' + error.message);
                 }
             });
         }
@@ -114,7 +115,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (action === 'view') {
                     await viewTransaction(id);
                 } else if (action === 'delete') {
-                    await deleteTransaction(id);
+                    if (await showConfirmDialog('Are you sure you want to delete this transaction?')) {
+                        await deleteTransaction(id);
+                    }
                 }
             });
         }
@@ -141,6 +144,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     } catch (error) {
         console.error('Error initializing transactions:', error);
-        alert('Error loading transactions. Please refresh the page.');
+        showErrorMessage('Error loading transactions. Please refresh the page.');
     }
 });

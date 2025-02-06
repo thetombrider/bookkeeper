@@ -10,6 +10,7 @@ export function createModal(type, title) {
                 <button class="close-modal">&times;</button>
             </div>
             <div class="modal-body"></div>
+            ${type !== 'success' ? `
             <div class="modal-footer">
                 ${type === 'delete' ? `
                     <button class="btn-cancel">Cancel</button>
@@ -17,10 +18,9 @@ export function createModal(type, title) {
                 ` : type === 'edit' ? `
                     <button class="btn-cancel">Cancel</button>
                     <button class="btn-confirm">Save Changes</button>
-                ` : `
-                    <button class="btn-confirm">OK</button>
-                `}
+                ` : ''}
             </div>
+            ` : ''}
         </div>
     `;
 
@@ -39,6 +39,11 @@ export function createModal(type, title) {
             hideModal(modal);
         }
     });
+
+    // Auto-hide success modals after 2 seconds
+    if (type === 'success') {
+        setTimeout(() => hideModal(modal), 2000);
+    }
 
     return modal;
 }

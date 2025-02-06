@@ -1,5 +1,6 @@
 import { API_URL, formatCurrency, parseDecimalNumber } from './config.js';
 import { allAccounts, loadAccounts } from './accounts.js';
+import { createModal, showModal, showSuccessMessage, showErrorMessage } from './modal.js';
 
 // Export all functions that are used externally
 export {
@@ -180,13 +181,8 @@ async function viewTransaction(id) {
         }
         const transaction = await response.json();
         
-        // Get the modal elements
-        const modal = document.getElementById('transactionModal');
-        const modalBody = modal.querySelector('.modal-body');
-        const closeBtn = modal.querySelector('.close-modal');
-        
-        // Format the transaction details in HTML
-        let detailsHtml = `
+        // Create modal content
+        const detailsHtml = `
             <div class="transaction-detail">
                 <h4>Basic Information</h4>
                 <div class="transaction-detail-row">
@@ -244,67 +240,39 @@ async function viewTransaction(id) {
             </div>
         `;
 
-        // Update modal content and show it
-        modalBody.innerHTML = detailsHtml;
-        modal.style.display = 'block';
-
-        // Close modal when clicking the close button
-        closeBtn.onclick = () => {
-            modal.style.display = 'none';
-        };
-
-        // Close modal when clicking outside of it
-        window.onclick = (event) => {
-            if (event.target === modal) {
-                modal.style.display = 'none';
-            }
-        };
+        // Create and show modal
+        const modal = createModal('edit', 'Transaction Details');
+        showModal(modal, detailsHtml);
 
     } catch (error) {
-        console.error('Error fetching transaction:', error);
-        alert('Error viewing transaction details');
+        console.error('Error viewing transaction:', error);
+        showErrorMessage('Error viewing transaction details: ' + error.message);
     }
 }
 
 async function deleteTransaction(id) {
-    if (!confirm('Are you sure you want to delete this transaction?')) {
-        return;
-    }
-
     try {
-        // Find and remove the transaction row from the UI immediately
-        const transactionRow = document.querySelector(`tr[data-transaction-id="${id}"]`);
-        if (transactionRow) {
-            transactionRow.remove();
+        const response = await fetch(`${API_URL}/transactions/${id}`, {
+            method: 'DELETE',
+            headers: {
+                'Accept': 'application/json'
+            }
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.detail || 'Error deleting transaction');
         }
 
-        const response = await fetch(`${API_URL}/transactions/${id}`, {
-            method: 'DELETE'
-        });
-        
-        // Handle different response statuses
-        if (response.status === 404) {
-            console.log('Transaction was already deleted');
-            return; // No need to show an alert or reload, just return
+        // Remove the transaction row from the table
+        const row = document.querySelector(`tr[data-transaction-id="${id}"]`);
+        if (row) {
+            row.remove();
         }
-        
-        if (!response.ok) {
-            // If there was an error and we removed the row, add it back
-            if (transactionRow && transactionRow.parentElement) {
-                transactionRow.parentElement.appendChild(transactionRow);
-            }
-            const errorData = await response.json().catch(() => null);
-            throw new Error(errorData?.detail || `Server error: ${response.status}`);
-        }
-        
-        // Only show success message if the deletion was successful
-        alert('Transaction deleted successfully');
-        
+
+        showSuccessMessage('Transaction deleted successfully!');
     } catch (error) {
         console.error('Error deleting transaction:', error);
-        // Only show error if it's not a 404
-        if (!error.message.includes('404') && !error.message.includes('not found')) {
-            alert('Error deleting transaction: ' + error.message);
-        }
+        showErrorMessage('Error deleting transaction: ' + error.message);
     }
 }
