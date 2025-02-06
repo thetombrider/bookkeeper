@@ -1,14 +1,14 @@
 import { loadIncomeStatement } from '../modules/reports.js';
 
 document.addEventListener('DOMContentLoaded', () => {
-    // Set up event listeners for date inputs and refresh button
+    // Get the input elements and refresh button
     const startDateInput = document.getElementById('incomeStartDate');
     const endDateInput = document.getElementById('incomeEndDate');
     const refreshBtn = document.querySelector('[data-action="refresh-income-statement"]');
 
     async function refreshIncomeStatement() {
-        const startDate = startDateInput.value;
-        const endDate = endDateInput.value;
+        const startDate = document.getElementById('incomeStartDate').value;
+        const endDate = document.getElementById('incomeEndDate').value;
         
         if (startDate && endDate) {
             try {
@@ -17,29 +17,24 @@ document.addEventListener('DOMContentLoaded', () => {
                 console.error('Error loading income statement:', error);
                 alert('Error loading income statement. Please try again.');
             }
+        } else {
+            alert('Please select both start and end dates');
         }
     }
 
     // Set up event listeners
     if (startDateInput && endDateInput) {
-        // Remove any existing event listeners by cloning and replacing
-        const newStartDateInput = startDateInput.cloneNode(true);
-        const newEndDateInput = endDateInput.cloneNode(true);
-        
-        startDateInput.parentNode.replaceChild(newStartDateInput, startDateInput);
-        endDateInput.parentNode.replaceChild(newEndDateInput, endDateInput);
-
-        [newStartDateInput, newEndDateInput].forEach(input => {
-            input.addEventListener('change', refreshIncomeStatement);
+        [startDateInput, endDateInput].forEach(input => {
+            input.addEventListener('change', () => {
+                // Don't automatically refresh on date change
+                // Let user click the refresh button instead
+                console.log(`Date changed - ${input.id}: ${input.value}`);
+            });
         });
     }
 
     if (refreshBtn) {
-        // Remove any existing event listeners by cloning and replacing
-        const newRefreshBtn = refreshBtn.cloneNode(true);
-        refreshBtn.parentNode.replaceChild(newRefreshBtn, refreshBtn);
-
-        newRefreshBtn.addEventListener('click', refreshIncomeStatement);
+        refreshBtn.addEventListener('click', refreshIncomeStatement);
     }
 
     // Set default dates if none are set
