@@ -40,9 +40,13 @@ document.addEventListener('DOMContentLoaded', () => {
     // Set default dates if none are set
     if (!startDateInput.value || !endDateInput.value) {
         const today = new Date();
-        const firstOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+        const firstOfYear = new Date(today.getFullYear(), 0, 1);
         
-        startDateInput.value = firstOfMonth.toISOString().split('T')[0];
+        // Adjust for timezone
+        const offset = firstOfYear.getTimezoneOffset();
+        const firstOfYearAdjusted = new Date(firstOfYear.getTime() - (offset * 60 * 1000));
+        
+        startDateInput.value = firstOfYearAdjusted.toISOString().split('T')[0];
         endDateInput.value = today.toISOString().split('T')[0];
         
         // Load initial income statement
