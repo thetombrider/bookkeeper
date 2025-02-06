@@ -747,8 +747,16 @@ class BookkeepingService:
             total_liabilities_and_equity=total_liabilities_and_equity
         )
         
-    def get_income_statement(self, start_date: date, end_date: date) -> models.IncomeStatement:
-        print(f"Generating income statement from {start_date} to {end_date}")
+    def get_income_statement(self, start_date: date, end_date: date, log_file=None) -> models.IncomeStatement:
+        """Generate income statement with optional logging to file."""
+        
+        def log(message: str):
+            """Helper to log messages to both console and file if provided"""
+            print(message)  # Keep console logging
+            if log_file:
+                log_file.write(message + "\n")
+        
+        log(f"Generating income statement from {start_date} to {end_date}")
         
         with self.db as session:
             # Get all income and expense accounts
@@ -756,13 +764,13 @@ class BookkeepingService:
             expense_accounts = session.query(models.Account).filter(models.Account.type == models.AccountType.EXPENSE).all()
 
             # Debug print account details
-            print("\nIncome Accounts:")
+            log("\nIncome Accounts:")
             for acc in income_accounts:
-                print(f"ID: {acc.id}, Name: {acc.name}, Type: {acc.type}")
+                log(f"ID: {acc.id}, Name: {acc.name}, Type: {acc.type}")
 
-            print("\nExpense Accounts:")
+            log("\nExpense Accounts:")
             for acc in expense_accounts:
-                print(f"ID: {acc.id}, Name: {acc.name}, Type: {acc.type}")
+                log(f"ID: {acc.id}, Name: {acc.name}, Type: {acc.type}")
 
             # Get all journal entries for income and expense accounts in the date range
             all_entries = session.query(
@@ -779,18 +787,18 @@ class BookkeepingService:
                 models.Account.type.in_([models.AccountType.INCOME, models.AccountType.EXPENSE])
             ).all()
 
-            print(f"\nFound {len(all_entries)} total journal entries in date range")
-            print("Sample of journal entries with account details:")
+            log(f"\nFound {len(all_entries)} total journal entries in date range")
+            log("Sample of journal entries with account details:")
             for entry, account in all_entries[:5]:
-                print(f"Account: {account.name} (ID: {account.id}, Type: {account.type})")
-                print(f"Entry: Debit={entry.debit_amount}, Credit={entry.credit_amount}")
+                log(f"Account: {account.name} (ID: {account.id}, Type: {account.type})")
+                log(f"Entry: Debit={entry.debit_amount}, Credit={entry.credit_amount}")
 
             # Process income accounts
             income = []
             total_income = Decimal('0.00')
             
             for account in income_accounts:
-                print(f"\nProcessing income account: {account.name} (ID: {account.id})")
+                log(f"\nProcessing income account: {account.name} (ID: {account.id})")
                 
                 # Get all entries for this account in the date range
                 account_entries = session.query(models.JournalEntry).join(
@@ -802,13 +810,13 @@ class BookkeepingService:
                     models.Transaction.transaction_date <= end_date
                 ).all()
                 
-                print(f"Found {len(account_entries)} entries for {account.name}")
+                log(f"Found {len(account_entries)} entries for {account.name}")
                 
                 # Calculate totals
                 total_debits = sum((entry.debit_amount for entry in account_entries), Decimal('0.00'))
                 total_credits = sum((entry.credit_amount for entry in account_entries), Decimal('0.00'))
                 
-                print(f"Account {account.name}: debits={total_debits}, credits={total_credits}")
+                log(f"Account {account.name}: debits={total_debits}, credits={total_credits}")
                 
                 # For income accounts, credits increase the balance (normal balance is credit)
                 balance = total_credits - total_debits
@@ -820,14 +828,14 @@ class BookkeepingService:
                     })
                     total_income += balance
             
-            print(f"\nTotal income: {total_income}")
+            log(f"\nTotal income: {total_income}")
             
             # Process expense accounts
             expenses = []
             total_expenses = Decimal('0.00')
             
             for account in expense_accounts:
-                print(f"\nProcessing expense account: {account.name} (ID: {account.id})")
+                log(f"\nProcessing expense account: {account.name} (ID: {account.id})")
                 
                 # Get all entries for this account in the date range
                 account_entries = session.query(models.JournalEntry).join(
@@ -839,13 +847,13 @@ class BookkeepingService:
                     models.Transaction.transaction_date <= end_date
                 ).all()
                 
-                print(f"Found {len(account_entries)} entries for {account.name}")
+                log(f"Found {len(account_entries)} entries for {account.name}")
                 
                 # Calculate totals
                 total_debits = sum((entry.debit_amount for entry in account_entries), Decimal('0.00'))
                 total_credits = sum((entry.credit_amount for entry in account_entries), Decimal('0.00'))
                 
-                print(f"Account {account.name}: debits={total_debits}, credits={total_credits}")
+                log(f"Account {account.name}: debits={total_debits}, credits={total_credits}")
                 
                 # For expense accounts, debits increase the balance (normal balance is debit)
                 balance = total_debits - total_credits
@@ -857,9 +865,9 @@ class BookkeepingService:
                     })
                     total_expenses += balance
             
-            print(f"\nTotal expenses: {total_expenses}")
+            log(f"\nTotal expenses: {total_expenses}")
             net_income = total_income - total_expenses
-            print(f"Net income: {net_income}")
+            log(f"Net income: {net_income}")
             
             return models.IncomeStatement(
                 income=income,

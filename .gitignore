@@ -5,3 +5,4 @@ dbpw.txt
 migrations/
 .cursor
 __pycache__/
+runs/

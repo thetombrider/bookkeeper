@@ -6,12 +6,13 @@ It provides endpoints for managing account categories, accounts, transactions,
 journal entries, and generating financial reports.
 """
 
-from datetime import date
+from datetime import date, datetime
 from typing import List, Optional, Dict
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from decimal import Decimal
+import os
 
 from .models import (
     AccountCategoryCreate, AccountCategoryResponse,
@@ -37,6 +38,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Create runs directory if it doesn't exist
+RUNS_DIR = "runs"
+os.makedirs(RUNS_DIR, exist_ok=True)
 
 # Journal Entries Endpoints
 
@@ -384,21 +389,37 @@ async def get_income_statement(
 ):
     """
     Generate an income statement report for a specific period.
-    
-    Parameters:
-    - start_date: Beginning of the reporting period
-    - end_date: End of the reporting period
-    
-    Returns an income statement showing:
-    - Total income
-    - Total expenses
-    - Net income
-    - Detailed breakdown of income and expense accounts
+    Logs debug information to a file in the runs directory.
     """
-    service = BookkeepingService(db)
+    # Create a log file with timestamp
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    log_file = os.path.join(RUNS_DIR, f"income_statement_run_{timestamp}.log")
+    
     try:
-        return service.get_income_statement(start_date, end_date)
+        service = BookkeepingService(db)
+        
+        # Redirect print statements to log file
+        with open(log_file, "w") as f:
+            # Log run parameters
+            f.write(f"Income Statement Generation Run\n")
+            f.write(f"Timestamp: {datetime.now()}\n")
+            f.write(f"Period: {start_date} to {end_date}\n\n")
+            
+            # Get income statement with logging
+            result = service.get_income_statement(
+                start_date, 
+                end_date, 
+                log_file=f
+            )
+            
+            f.write("\nRun completed successfully\n")
+        
+        return result
+        
     except Exception as e:
+        # Log any errors
+        with open(log_file, "a") as f:
+            f.write(f"\nError occurred: {str(e)}\n")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/accounts/balances/", response_model=Dict[str, Decimal], tags=["accounts"])
