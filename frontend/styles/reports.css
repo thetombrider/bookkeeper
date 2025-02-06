@@ -1,0 +1,145 @@
+/* Reports styles */
+.reports-container {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 2rem;
+}
+
+.report-section {
+    background-color: #f8f9fa;
+    padding: 1.5rem;
+    border-radius: 4px;
+}
+
+/* Balance Sheet */
+.balance-sheet {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2rem;
+    background-color: white;
+    padding: 2rem;
+    margin: 0;
+    width: 100%;
+}
+
+.balance-sheet-column {
+    min-width: 0;
+}
+
+.balance-sheet-column:first-child {
+    border-right: 1px solid #dee2e6;
+    padding-right: 2rem;
+}
+
+.balance-sheet-column:last-child {
+    padding-left: 2rem;
+}
+
+.balance-sheet h3 {
+    color: #333;
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 2px solid #007bff;
+}
+
+.balance-sheet h3:not(:first-child) {
+    margin-top: 2rem;
+}
+
+.balance-sheet .total-row {
+    border-top: 2px solid #dee2e6;
+    background-color: #f8f9fa;
+    font-weight: bold;
+}
+
+.balance-sheet .grand-total-row {
+    border-top: 3px double #dee2e6;
+    background-color: #e9ecef;
+    font-weight: bold;
+}
+
+/* Income Statement */
+.income-statement {
+    background-color: white;
+    padding: 2rem;
+    margin: 0;
+    width: 100%;
+}
+
+.statement-section {
+    margin-bottom: 2.5rem;
+}
+
+.statement-section:last-child {
+    margin-bottom: 0;
+}
+
+.statement-section h3 {
+    color: #333;
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 2px solid #007bff;
+    font-size: 1.25rem;
+    font-weight: 600;
+}
+
+.net-income-section {
+    margin-top: 3rem;
+    border-top: 3px double #dee2e6;
+    padding-top: 1.5rem;
+}
+
+.net-income-section h3 {
+    color: #2c5282;
+}
+
+@media (max-width: 768px) {
+    .balance-sheet {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+    }
+    
+    .balance-sheet-column:first-child {
+        border-right: none;
+        padding-right: 0;
+        border-bottom: 1px solid #dee2e6;
+        padding-bottom: 2rem;
+        margin-bottom: 2rem;
+    }
+    
+    .balance-sheet-column:last-child {
+        padding-left: 0;
+    }
+}
+
+/* Balance Sheet Table Styles */
+.balance-sheet table {
+    width: 100%;
+    margin-bottom: 1rem;
+    border-collapse: collapse;
+}
+
+.balance-sheet th,
+.balance-sheet td {
+    padding: 0.75rem;
+    border-bottom: 1px solid #dee2e6;
+}
+
+.balance-sheet th {
+    background-color: #f8f9fa;
+    font-weight: bold;
+    text-align: left;
+}
+
+.balance-sheet td {
+    text-align: left;
+}
+
+.balance-sheet .text-right {
+    text-align: right;
+}
+
+.balance-sheet .balance {
+    font-family: monospace;
+    white-space: nowrap;
+} 

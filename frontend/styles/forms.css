@@ -1,0 +1,153 @@
+/* Forms and inputs */
+.form-container {
+    margin-bottom: 2rem;
+    padding-bottom: 1rem;
+}
+
+/* List container */
+.list-container {
+    margin-top: 2rem;
+    padding-top: 2rem;
+    border-top: 1px solid #dee2e6;
+}
+
+.form-group {
+    margin-bottom: 1rem;
+}
+
+label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: bold;
+}
+
+input[type="text"],
+input[type="date"],
+select,
+textarea {
+    width: 100%;
+    padding: 0.5rem;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 1rem;
+}
+
+textarea {
+    height: 100px;
+    resize: vertical;
+}
+
+/* Buttons */
+button {
+    background-color: #333;
+    color: white;
+    padding: 0.5rem 1rem;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 1rem;
+}
+
+button:hover {
+    background-color: #252525;
+}
+
+/* Action buttons */
+button[data-action] {
+    cursor: pointer;
+}
+
+/* Account Form Editing State */
+.form-container.editing {
+    background-color: #f8f9fa;
+    border-left: 4px solid #333;
+    padding: 1.5rem;
+    margin: -1.5rem -1.5rem 1.5rem -1.5rem;
+    border-radius: 4px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    transition: all 0.3s ease;
+}
+
+.form-container.editing h3 {
+    color: #333;
+    font-weight: 600;
+}
+
+.cancel-edit-btn {
+    background-color: #6c757d;
+    margin-left: 0.5rem;
+}
+
+.cancel-edit-btn:hover {
+    background-color: #5a6268;
+}
+
+.form-container form {
+    position: relative;
+}
+
+.form-container form button {
+    margin-right: 0.5rem;
+}
+
+.form-container form button:last-child {
+    margin-right: 0;
+}
+
+/* Filter Controls */
+.filter-controls {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+    align-items: center;
+    background-color: #f8f9fa;
+    padding: 1rem;
+    border-radius: 4px;
+}
+
+.filter-controls label {
+    margin: 0;
+    white-space: nowrap;
+}
+
+.filter-controls input[type="date"] {
+    width: auto;
+    margin: 0;
+}
+
+.refresh-btn {
+    margin-left: auto;
+}
+
+.sorting-options {
+    margin-bottom: 1rem;
+    padding: 0.75rem;
+    background-color: #f8f9fa;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.sorting-options label {
+    margin: 0;
+    font-weight: 600;
+    color: #333;
+}
+
+.sorting-options select {
+    padding: 0.375rem 0.75rem;
+    border: 1px solid #ced4da;
+    border-radius: 4px;
+    background-color: white;
+    min-width: 150px;
+    font-size: 0.9375rem;
+}
+
+.sorting-options select:focus {
+    border-color: #80bdff;
+    outline: 0;
+    box-shadow: 0 0 0 0.2rem rgba(0,123,255,.25);
+}
+
+/* ... resto degli stili dei form ... */ 

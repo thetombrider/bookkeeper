@@ -2,6 +2,67 @@ import { API_URL } from './config.js';
 
 export let allCategories = [];
 
+export function handleEditCategory(id, name, description) {
+    // Fill the form with category data
+    const nameInput = document.getElementById('categoryName');
+    const descInput = document.getElementById('categoryDescription');
+    const form = document.getElementById('categoryForm');
+    
+    if (nameInput && descInput && form) {
+        nameInput.value = name;
+        descInput.value = description;
+        
+        // Update form to handle edit instead of create
+        form.dataset.editId = id;
+        
+        // Change button text
+        const submitButton = form.querySelector('button[type="submit"]');
+        if (submitButton) {
+            submitButton.textContent = 'Update Category';
+        }
+    }
+}
+
+export async function handleDeleteCategory(id) {
+    if (!confirm('Are you sure you want to delete this category?')) {
+        return;
+    }
+
+    try {
+        await deleteCategory(id);
+        alert('Category deleted successfully!');
+        // Manually update the UI without triggering event listeners
+        const row = document.querySelector(`button[data-id="${id}"]`).closest('tr');
+        if (row) {
+            row.remove();
+        }
+        // Reload categories without triggering delete
+        const response = await fetch(`${API_URL}/account-categories/`);
+        if (response.ok) {
+            allCategories = await response.json();
+            updateCategoryDropdown();
+        }
+    } catch (error) {
+        console.error('Error deleting category:', error);
+        if (error.message.includes('not found')) {
+            alert('Category has already been deleted.');
+            // Manually update the UI without triggering event listeners
+            const row = document.querySelector(`button[data-id="${id}"]`)?.closest('tr');
+            if (row) {
+                row.remove();
+            }
+            // Update allCategories without triggering delete
+            const response = await fetch(`${API_URL}/account-categories/`);
+            if (response.ok) {
+                allCategories = await response.json();
+                updateCategoryDropdown();
+            }
+        } else {
+            alert('Error deleting category: ' + error.message);
+        }
+    }
+}
+
 export async function loadCategories() {
     try {
         const response = await fetch(`${API_URL}/account-categories/`);
@@ -71,67 +132,6 @@ export async function loadCategories() {
     } catch (error) {
         console.error('Error loading categories:', error);
         throw error;
-    }
-}
-
-function handleEditCategory(id, name, description) {
-    // Fill the form with category data
-    const nameInput = document.getElementById('categoryName');
-    const descInput = document.getElementById('categoryDescription');
-    const form = document.getElementById('categoryForm');
-    
-    if (nameInput && descInput && form) {
-        nameInput.value = name;
-        descInput.value = description;
-        
-        // Update form to handle edit instead of create
-        form.dataset.editId = id;
-        
-        // Change button text
-        const submitButton = form.querySelector('button[type="submit"]');
-        if (submitButton) {
-            submitButton.textContent = 'Update Category';
-        }
-    }
-}
-
-async function handleDeleteCategory(id) {
-    if (!confirm('Are you sure you want to delete this category?')) {
-        return;
-    }
-
-    try {
-        await deleteCategory(id);
-        alert('Category deleted successfully!');
-        // Manually update the UI without triggering event listeners
-        const row = document.querySelector(`button[data-id="${id}"]`).closest('tr');
-        if (row) {
-            row.remove();
-        }
-        // Reload categories without triggering delete
-        const response = await fetch(`${API_URL}/account-categories/`);
-        if (response.ok) {
-            allCategories = await response.json();
-            updateCategoryDropdown();
-        }
-    } catch (error) {
-        console.error('Error deleting category:', error);
-        if (error.message.includes('not found')) {
-            alert('Category has already been deleted.');
-            // Manually update the UI without triggering event listeners
-            const row = document.querySelector(`button[data-id="${id}"]`)?.closest('tr');
-            if (row) {
-                row.remove();
-            }
-            // Update allCategories without triggering delete
-            const response = await fetch(`${API_URL}/account-categories/`);
-            if (response.ok) {
-                allCategories = await response.json();
-                updateCategoryDropdown();
-            }
-        } else {
-            alert('Error deleting category: ' + error.message);
-        }
     }
 }
 

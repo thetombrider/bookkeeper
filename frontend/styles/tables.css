@@ -1,0 +1,168 @@
+/* Table styles */
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 1rem;
+}
+
+th, td {
+    padding: 0.75rem;
+    text-align: left;
+    border-bottom: 1px solid #ddd;
+}
+
+th {
+    background-color: #f8f9fa;
+    font-weight: bold;
+}
+
+/* Accounts Table */
+.accounts-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 1rem;
+    background-color: white;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.accounts-table th,
+.accounts-table td {
+    padding: 0.75rem;
+    text-align: left;
+    border-bottom: 1px solid #dee2e6;
+}
+
+.accounts-table th {
+    background-color: #f8f9fa;
+    font-weight: bold;
+    color: #333;
+}
+
+.category-row {
+    background-color: #f8f9fa;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.category-row:hover {
+    background-color: #e9ecef;
+}
+
+.account-row {
+    background-color: white;
+    transition: background-color 0.2s;
+}
+
+.account-row:hover {
+    background-color: #f8f9fa;
+}
+
+/* Balance classes */
+.balance-positive {
+    color: #4CAF50;
+}
+
+.balance-negative {
+    color: #f44336;
+}
+
+.balance-zero {
+    color: #757575;
+}
+
+/* ... resto degli stili delle tabelle ... */
+
+/* Account Actions */
+.account-actions {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.account-actions button {
+    padding: 0.4rem 1rem;
+    font-size: 0.9375rem;
+    white-space: nowrap;
+}
+
+/* Account Items */
+.account-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem;
+    border-bottom: 1px solid #ddd;
+}
+
+.account-item:last-child {
+    border-bottom: none;
+}
+
+.account-info {
+    flex: 1;
+    font-size: 1rem;
+}
+
+.account-info strong {
+    display: block;
+    margin-bottom: 0.25rem;
+    font-weight: normal;
+}
+
+.account-info p {
+    margin: 0;
+    color: #666;
+    font-size: 0.875rem;
+}
+
+/* Journal Entries */
+.journal-entries {
+    background-color: white;
+    padding: 1.5rem;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    margin-bottom: 2rem;
+}
+
+.journal-entries h2 {
+    color: #333;
+    margin-bottom: 1.5rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 2px solid #007bff;
+}
+
+.journal-actions {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.journal-entries-list {
+    margin-bottom: 1.5rem;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.journal-entry-row {
+    display: grid;
+    grid-template-columns: 3fr 1fr 1fr auto;
+    gap: 1rem;
+    padding: 1rem;
+    align-items: center;
+    border-bottom: 1px solid #dee2e6;
+    background-color: #fff;
+}
+
+/* Category Actions */
+.category-actions {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.category-actions button {
+    padding: 0.4rem 1rem;
+    font-size: 0.9375rem;
+    white-space: nowrap;
+} 

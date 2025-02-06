@@ -1,4 +1,4 @@
-import { loadCategories, createCategory } from '../modules/categories.js';
+import { loadCategories, createCategory, handleEditCategory, handleDeleteCategory } from '../modules/categories.js';
 
 document.addEventListener('DOMContentLoaded', async () => {
     try {
