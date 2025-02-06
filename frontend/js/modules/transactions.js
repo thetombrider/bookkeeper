@@ -117,7 +117,7 @@ function generateTransactionsTable(transactions) {
                     </thead>
                     <tbody>
                         ${sortedTransactions.map(transaction => {
-                            // Find debit and credit accounts
+                            // Filter entries by actual debit and credit amounts
                             const debitEntries = transaction.journal_entries.filter(entry => entry.debit_amount > 0);
                             const creditEntries = transaction.journal_entries.filter(entry => entry.credit_amount > 0);
                             
