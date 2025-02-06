@@ -2,6 +2,8 @@
 .table-container {
     position: relative;
     margin: 1rem 0;
+    width: 100%;
+    overflow-x: visible;
 }
 
 /* Table Controls */
@@ -106,14 +108,10 @@ table {
     margin: 0;
     background-color: white;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-    display: table;
     border-collapse: collapse;
 }
 
-/* Make rows flex containers */
 tr {
-    display: flex;
-    align-items: stretch;
     border-bottom: 1px solid #dee2e6;
 }
 
@@ -124,10 +122,8 @@ tr:last-child {
 th, td {
     padding: 0.75rem;
     text-align: left;
-    display: flex;
-    align-items: center;
+    vertical-align: middle;
     line-height: 1.2;
-    box-sizing: border-box;
 }
 
 th {
@@ -136,50 +132,141 @@ th {
     color: #495057;
 }
 
-/* Column widths for transactions table */
-.transactions-table th:nth-child(1), /* Date */
+/* Amount columns in tables */
+td.amount-column,
+th.amount-column {
+    text-align: right;
+    white-space: nowrap;
+}
+
+/* Balance classes */
+.balance-positive {
+    color: #4CAF50;
+    text-align: right;
+}
+
+.balance-negative {
+    color: #f44336;
+    text-align: right;
+}
+
+.balance-zero {
+    color: #757575;
+    text-align: right;
+}
+
+/* Accounts Table */
+.accounts-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 1rem;
+    background-color: white;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.accounts-table th,
+.accounts-table td {
+    padding: 0.75rem;
+    text-align: left;
+    border-bottom: 1px solid #dee2e6;
+}
+
+.accounts-table td.amount {
+    text-align: right;
+}
+
+/* Categories Table */
+.categories-table th,
+.categories-table td {
+    text-align: left;
+}
+
+.categories-table td.amount {
+    text-align: right;
+}
+
+.categories-table td:last-child {
+    text-align: center;
+}
+
+.categories-table .category-actions {
+    justify-content: center;
+}
+
+/* Reports Tables */
+.report-table td.amount,
+.report-table th.amount {
+    text-align: right;
+    white-space: nowrap;
+}
+
+/* Transactions table specific styles */
+.transactions-table {
+    width: 100%;
+    table-layout: fixed;
+    border-collapse: collapse;
+}
+
+.transactions-table th,
+.transactions-table td {
+    padding: 0.75rem;
+    text-align: left;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    vertical-align: middle;
+}
+
+/* Column widths */
+.transactions-table th:nth-child(1),
 .transactions-table td:nth-child(1) {
-    width: 120px;
-    flex: 0 0 120px;
+    width: 100px;  /* Date */
 }
 
-.transactions-table th:nth-child(2), /* Description */
+.transactions-table th:nth-child(2),
 .transactions-table td:nth-child(2) {
-    width: 200px;
-    flex: 0 0 200px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    width: 150px;  /* Description */
 }
 
-.transactions-table th:nth-child(3), /* Debit Account */
+.transactions-table th:nth-child(3),
 .transactions-table td:nth-child(3),
-.transactions-table th:nth-child(4), /* Credit Account */
+.transactions-table th:nth-child(4),
 .transactions-table td:nth-child(4) {
-    width: 250px;
-    flex: 0 0 250px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    width: 200px;  /* Debit and Credit accounts */
 }
 
-.transactions-table th:nth-child(5), /* Status */
+.transactions-table th:nth-child(5),
 .transactions-table td:nth-child(5) {
-    width: 100px;
-    flex: 0 0 100px;
+    width: 120px;  /* Status */
 }
 
-.transactions-table th:nth-child(6), /* Actions */
+.transactions-table th:nth-child(6),
 .transactions-table td:nth-child(6) {
-    width: 150px;
-    flex: 0 0 150px;
+    width: 140px;  /* Actions */
 }
 
-/* Action buttons container */
+/* Action buttons */
 .transaction-actions {
     display: flex;
     gap: 0.5rem;
-    align-items: center;
+    justify-content: center;
+}
+
+.transaction-actions button {
+    min-width: 60px;
+    padding: 0.375rem 0.75rem;
+    white-space: nowrap;
+    font-size: 0.875rem;
+    background-color: #495057;
+    border-radius: 4px;
+    border: none;
+    color: white;
+    cursor: pointer;
+    transition: background-color 0.15s ease-in-out;
+}
+
+.transaction-actions button:hover {
+    background-color: #343a40;
 }
 
 /* Status badge */
@@ -264,62 +351,6 @@ tr td {
     transition: background-color 0.15s ease-in-out;
 }
 
-/* Accounts Table */
-.accounts-table {
-    width: 100%;
-    border-collapse: collapse;
-    margin-top: 1rem;
-    background-color: white;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-}
-
-.accounts-table th,
-.accounts-table td {
-    padding: 0.75rem;
-    text-align: left;
-    border-bottom: 1px solid #dee2e6;
-}
-
-.accounts-table th {
-    background-color: #f8f9fa;
-    font-weight: bold;
-    color: #333;
-}
-
-.category-row {
-    background-color: #f8f9fa;
-    cursor: pointer;
-    transition: background-color 0.2s;
-}
-
-.category-row:hover {
-    background-color: #e9ecef;
-}
-
-.account-row {
-    background-color: white;
-    transition: background-color 0.2s;
-}
-
-.account-row:hover {
-    background-color: #f8f9fa;
-}
-
-/* Balance classes */
-.balance-positive {
-    color: #4CAF50;
-}
-
-.balance-negative {
-    color: #f44336;
-}
-
-.balance-zero {
-    color: #757575;
-}
-
-/* ... resto degli stili delle tabelle ... */
-
 /* Account Items */
 .account-item {
     display: flex;
@@ -335,19 +366,22 @@ tr td {
 
 .account-info {
     flex: 1;
-    font-size: 1rem;
 }
 
 .account-info strong {
     display: block;
     margin-bottom: 0.25rem;
-    font-weight: normal;
 }
 
 .account-info p {
     margin: 0;
     color: #666;
     font-size: 0.875rem;
+}
+
+.account-balance {
+    text-align: right;
+    min-width: 120px;
 }
 
 /* Journal Entries */
@@ -415,19 +449,4 @@ td .status-badge {
     height: 1.5rem;
     line-height: 1;
     margin: 0;
-}
-
-/* Action buttons */
-.transaction-actions button {
-    padding: 0.25rem 0.75rem;
-    font-size: 0.875rem;
-    white-space: nowrap;
-    min-width: 60px;
-    line-height: 1.2;
-    opacity: 0.85;
-    transition: opacity 0.2s ease-in-out;
-}
-
-.transaction-actions button:hover {
-    opacity: 1;
 } 

@@ -200,7 +200,6 @@ button[data-action] {
 
 .journal-entry-row input[type="number"] {
     text-align: right;
-    font-family: monospace;
 }
 
 .journal-entry-row button {
@@ -226,20 +225,19 @@ button[data-action] {
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    font-weight: 600;
 }
 
 .journal-total label {
     margin: 0;
     display: inline;
     font-size: 0.9375rem;
+    font-weight: 500;
 }
 
 .journal-total span {
-    font-family: monospace;
-    font-size: 1.1rem;
     min-width: 100px;
     text-align: right;
+    font-size: 1rem;
 }
 
 /* ... resto degli stili dei form ... */ 

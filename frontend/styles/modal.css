@@ -197,36 +197,33 @@
 
 /* Transaction Details */
 .transaction-detail {
-    margin-bottom: 20px;
-}
-
-.transaction-detail h4 {
-    color: #666;
-    margin: 0 0 10px 0;
-    font-size: 14px;
-    text-transform: uppercase;
+    margin-bottom: 1.5rem;
+    padding: 1rem;
+    background-color: #f8f9fa;
+    border-radius: 4px;
 }
 
 .transaction-detail-row {
     display: flex;
     justify-content: space-between;
-    padding: 8px 0;
-    border-bottom: 1px solid #eee;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid #dee2e6;
 }
 
 .transaction-detail-row:last-child {
     border-bottom: none;
 }
 
-.transaction-entries {
-    margin-top: 20px;
+.transaction-detail-row span:first-child {
+    color: #6c757d;
+    font-weight: 500;
 }
 
+/* Transaction Details Table */
 .transaction-entries table {
     width: 100%;
     border-collapse: collapse;
     margin: 1rem 0;
-    table-layout: fixed;
 }
 
 .transaction-entries th,
@@ -256,25 +253,29 @@
 .transaction-entries td:nth-child(3) {
     width: 20%;
     text-align: right;
-    font-family: monospace;
     white-space: nowrap;
 }
 
-/* Transaction totals alignment */
+/* Transaction totals */
+.transaction-totals {
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 2px solid #dee2e6;
+}
+
 .transaction-total-row {
     display: flex;
     justify-content: flex-end;
     gap: 2rem;
-    font-weight: 600;
     padding: 0.5rem 0;
 }
 
 .transaction-total-row span:first-child {
     text-align: right;
+    font-weight: 500;
 }
 
 .transaction-total-row span:last-child {
-    font-family: monospace;
     min-width: 120px;
     text-align: right;
 } 
