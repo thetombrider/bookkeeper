@@ -361,16 +361,14 @@ async function handleEditAccount(id) {
     if (form && nameInput && typeSelect && categorySelect && descInput && submitButton) {
         nameInput.value = account.name;
         typeSelect.value = account.type;
-        typeSelect.disabled = true;
+        typeSelect.disabled = true; // Disable type selection in edit mode
         descInput.value = account.description || '';
         
-        // Enable category select
+        // First enable and update category dropdown
         categorySelect.disabled = false;
+        updateCategoryDropdown();
         
-        // Trigger category dropdown update
-        typeSelect.dispatchEvent(new Event('change'));
-        
-        // Set category after dropdown is updated
+        // Then set the category value
         setTimeout(() => {
             categorySelect.value = account.category_id || '';
         }, 0);
