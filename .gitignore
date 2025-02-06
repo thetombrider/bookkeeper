@@ -3,3 +3,4 @@ venv/
 accounts-tommy.txt
 dbpw.txt
 migrations/
+.cursor
