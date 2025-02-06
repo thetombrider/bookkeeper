@@ -13,6 +13,13 @@ export {
     deleteTransaction
 };
 
+// Add sorting state and cached transactions
+let currentSort = {
+    column: 'date',
+    direction: 'desc'
+};
+let cachedTransactions = [];
+
 async function loadTransactions() {
     const transactionsList = document.getElementById('transactionsList');
     if (!transactionsList) return;
@@ -31,14 +38,10 @@ async function loadTransactions() {
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
-        const transactions = await response.json();
+        cachedTransactions = await response.json();
         
         // Update transactions list
-        transactionsList.innerHTML = generateTransactionsTable(transactions);
-        
-        // Setup interactive features
-        setupTableSorting(transactionsList);
-        setupTableSearch(transactionsList);
+        updateTransactionsTable();
         
     } catch (error) {
         console.error('Error loading transactions:', error);
@@ -52,7 +55,22 @@ async function loadTransactions() {
     }
 }
 
+// Update the table without reloading data
+function updateTransactionsTable() {
+    const transactionsList = document.getElementById('transactionsList');
+    if (!transactionsList) return;
+
+    transactionsList.innerHTML = generateTransactionsTable(cachedTransactions);
+    
+    // Setup interactive features
+    setupTableSorting(transactionsList);
+    setupTableSearch(transactionsList);
+}
+
 function generateTransactionsTable(transactions) {
+    // Sort transactions based on current sort state
+    const sortedTransactions = sortTransactions(transactions, currentSort);
+
     return `
         <div class="table-container">
             <div class="table-controls">
@@ -75,27 +93,32 @@ function generateTransactionsTable(transactions) {
                 <table class="transactions-table">
                     <thead>
                         <tr>
-                            <th class="sortable" data-sort="date">Date</th>
-                            <th class="sortable" data-sort="description">Description</th>
-                            <th class="sortable" data-sort="debit">Debit Account</th>
-                            <th class="sortable" data-sort="credit">Credit Account</th>
-                            <th class="sortable" data-sort="status">Status</th>
+                            <th class="sortable ${currentSort.column === 'date' ? `sort-${currentSort.direction}` : ''}" 
+                                data-sort="date">Date</th>
+                            <th class="sortable ${currentSort.column === 'description' ? `sort-${currentSort.direction}` : ''}" 
+                                data-sort="description">Description</th>
+                            <th class="sortable ${currentSort.column === 'debit' ? `sort-${currentSort.direction}` : ''}" 
+                                data-sort="debit">Debit Account</th>
+                            <th class="sortable ${currentSort.column === 'credit' ? `sort-${currentSort.direction}` : ''}" 
+                                data-sort="credit">Credit Account</th>
+                            <th class="sortable ${currentSort.column === 'status' ? `sort-${currentSort.direction}` : ''}" 
+                                data-sort="status">Status</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody>
-                        ${transactions.map(transaction => {
+                        ${sortedTransactions.map(transaction => {
                             // Find debit and credit accounts
-                            const debitEntry = transaction.journal_entries.find(entry => entry.debit_amount > 0);
-                            const creditEntry = transaction.journal_entries.find(entry => entry.credit_amount > 0);
+                            const debitEntries = transaction.journal_entries.filter(entry => entry.debit_amount > 0);
+                            const creditEntries = transaction.journal_entries.filter(entry => entry.credit_amount > 0);
                             
                             // Format account names
-                            const debitAccount = debitEntry ? `${debitEntry.account.code} - ${debitEntry.account.name}` : '';
-                            const creditAccount = creditEntry ? `${creditEntry.account.code} - ${creditEntry.account.name}` : '';
+                            const debitAccount = formatAccountsList(debitEntries);
+                            const creditAccount = formatAccountsList(creditEntries);
                             
                             return `
                                 <tr data-transaction-id="${transaction.id}">
-                                    <td>${transaction.transaction_date}</td>
+                                    <td>${formatDate(transaction.transaction_date)}</td>
                                     <td title="${transaction.description}">${transaction.description}</td>
                                     <td title="${debitAccount}">${debitAccount}</td>
                                     <td title="${creditAccount}">${creditAccount}</td>
@@ -118,42 +141,99 @@ function generateTransactionsTable(transactions) {
     `;
 }
 
-// Add sorting functionality
+// Format date consistently
+function formatDate(dateString) {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('it-IT', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+    });
+}
+
+// Format multiple accounts for display
+function formatAccountsList(entries) {
+    if (entries.length === 0) return '';
+    if (entries.length === 1) {
+        return `${entries[0].account.code} - ${entries[0].account.name}`;
+    }
+    // For multiple entries, show first one and indicate there are more
+    return `${entries[0].account.code} - ${entries[0].account.name} (+${entries.length - 1} more)`;
+}
+
+// Sort transactions based on current sort state
+function sortTransactions(transactions, sort) {
+    return [...transactions].sort((a, b) => {
+        let aVal, bVal;
+
+        switch (sort.column) {
+            case 'date':
+                aVal = new Date(a.transaction_date).getTime();
+                bVal = new Date(b.transaction_date).getTime();
+                break;
+            case 'description':
+                aVal = a.description.toLowerCase();
+                bVal = b.description.toLowerCase();
+                break;
+            case 'debit':
+                const aDebit = a.journal_entries.find(e => e.debit_amount > 0);
+                const bDebit = b.journal_entries.find(e => e.debit_amount > 0);
+                aVal = aDebit ? `${aDebit.account.code} - ${aDebit.account.name}`.toLowerCase() : '';
+                bVal = bDebit ? `${bDebit.account.code} - ${bDebit.account.name}`.toLowerCase() : '';
+                break;
+            case 'credit':
+                const aCredit = a.journal_entries.find(e => e.credit_amount > 0);
+                const bCredit = b.journal_entries.find(e => e.credit_amount > 0);
+                aVal = aCredit ? `${aCredit.account.code} - ${aCredit.account.name}`.toLowerCase() : '';
+                bVal = bCredit ? `${bCredit.account.code} - ${bCredit.account.name}`.toLowerCase() : '';
+                break;
+            case 'status':
+                aVal = a.status.toLowerCase();
+                bVal = b.status.toLowerCase();
+                break;
+            default:
+                return 0;
+        }
+
+        // Handle null/undefined values
+        if (aVal === null || aVal === undefined) aVal = '';
+        if (bVal === null || bVal === undefined) bVal = '';
+
+        const direction = sort.direction === 'asc' ? 1 : -1;
+        
+        // Compare values
+        if (aVal < bVal) return -1 * direction;
+        if (aVal > bVal) return 1 * direction;
+        
+        // Secondary sort by date if primary sort is equal
+        if (sort.column !== 'date') {
+            const aDate = new Date(a.transaction_date).getTime();
+            const bDate = new Date(b.transaction_date).getTime();
+            return (bDate - aDate) * direction; // Keep same direction as primary sort
+        }
+        return 0;
+    });
+}
+
+// Setup sorting functionality
 function setupTableSorting(container) {
     const headers = container.querySelectorAll('th.sortable');
     headers.forEach(header => {
         header.addEventListener('click', () => {
             const sortKey = header.dataset.sort;
-            const isAsc = !header.classList.contains('sort-asc');
             
-            // Remove sort classes from all headers
-            headers.forEach(h => {
-                h.classList.remove('sort-asc', 'sort-desc');
-            });
-            
-            // Add sort class to clicked header
-            header.classList.add(isAsc ? 'sort-asc' : 'sort-desc');
-            
-            // Sort the table
-            const tbody = container.querySelector('tbody');
-            const rows = Array.from(tbody.querySelectorAll('tr'));
-            
-            rows.sort((a, b) => {
-                let aVal = a.children[Array.from(headers).indexOf(header)].textContent;
-                let bVal = b.children[Array.from(headers).indexOf(header)].textContent;
-                
-                if (sortKey === 'date') {
-                    aVal = new Date(aVal);
-                    bVal = new Date(bVal);
-                }
-                
-                if (aVal < bVal) return isAsc ? -1 : 1;
-                if (aVal > bVal) return isAsc ? 1 : -1;
-                return 0;
-            });
-            
-            // Update the table
-            rows.forEach(row => tbody.appendChild(row));
+            // Update sort state
+            if (currentSort.column === sortKey) {
+                // Toggle direction if same column
+                currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
+            } else {
+                // New column, set to desc by default
+                currentSort.column = sortKey;
+                currentSort.direction = 'desc';
+            }
+
+            // Update table with new sort
+            updateTransactionsTable();
         });
     });
 }

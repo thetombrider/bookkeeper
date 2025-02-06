@@ -103,16 +103,31 @@ th.sortable.sort-desc::after {
 /* Base table styles */
 table {
     width: 100%;
-    border-collapse: collapse;
     margin: 0;
     background-color: white;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    display: table;
+    border-collapse: collapse;
+}
+
+/* Make rows flex containers */
+tr {
+    display: flex;
+    align-items: stretch;
+    border-bottom: 1px solid #dee2e6;
+}
+
+tr:last-child {
+    border-bottom: none;
 }
 
 th, td {
     padding: 0.75rem;
     text-align: left;
-    border-bottom: 1px solid #dee2e6;
+    display: flex;
+    align-items: center;
+    line-height: 1.2;
+    box-sizing: border-box;
 }
 
 th {
@@ -121,24 +136,20 @@ th {
     color: #495057;
 }
 
-tr:hover {
-    background-color: #f8f9fa;
-}
-
 /* Column widths for transactions table */
 .transactions-table th:nth-child(1), /* Date */
 .transactions-table td:nth-child(1) {
     width: 120px;
-    white-space: nowrap;
+    flex: 0 0 120px;
 }
 
 .transactions-table th:nth-child(2), /* Description */
 .transactions-table td:nth-child(2) {
     width: 200px;
-    max-width: 200px;
-    white-space: nowrap;
+    flex: 0 0 200px;
     overflow: hidden;
     text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .transactions-table th:nth-child(3), /* Debit Account */
@@ -146,55 +157,42 @@ tr:hover {
 .transactions-table th:nth-child(4), /* Credit Account */
 .transactions-table td:nth-child(4) {
     width: 250px;
-    white-space: nowrap;
+    flex: 0 0 250px;
     overflow: hidden;
     text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .transactions-table th:nth-child(5), /* Status */
 .transactions-table td:nth-child(5) {
     width: 100px;
-    white-space: nowrap;
+    flex: 0 0 100px;
 }
 
 .transactions-table th:nth-child(6), /* Actions */
 .transactions-table td:nth-child(6) {
     width: 150px;
-    white-space: nowrap;
+    flex: 0 0 150px;
 }
 
 /* Action buttons container */
 .transaction-actions {
     display: flex;
     gap: 0.5rem;
-    justify-content: flex-start;
+    align-items: center;
 }
 
-.transaction-actions button {
-    padding: 0.25rem 0.75rem;
-    font-size: 0.875rem;
-    white-space: nowrap;
-    min-width: 60px;
-}
-
-/* Hover Actions */
-.transaction-actions button {
-    opacity: 0.85;
-    transition: opacity 0.2s ease-in-out;
-}
-
-.transaction-actions button:hover {
-    opacity: 1;
-}
-
-/* Status Badges */
+/* Status badge */
 .status-badge {
-    display: inline-block;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     padding: 0.25rem 0.5rem;
     border-radius: 4px;
     font-size: 0.75rem;
     font-weight: 600;
     text-transform: uppercase;
+    line-height: 1;
 }
 
 .status-badge.pending {
@@ -210,6 +208,11 @@ tr:hover {
 .status-badge.cancelled {
     background-color: #f8d7da;
     color: #721c24;
+}
+
+/* Hover effect */
+tr:hover {
+    background-color: #f8f9fa;
 }
 
 /* Category table specific styles */
@@ -397,4 +400,34 @@ tr td {
     padding: 0.4rem 1rem;
     font-size: 0.9375rem;
     white-space: nowrap;
+}
+
+/* Status badge alignment */
+td .status-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    height: 1.5rem;
+    line-height: 1;
+    margin: 0;
+}
+
+/* Action buttons */
+.transaction-actions button {
+    padding: 0.25rem 0.75rem;
+    font-size: 0.875rem;
+    white-space: nowrap;
+    min-width: 60px;
+    line-height: 1.2;
+    opacity: 0.85;
+    transition: opacity 0.2s ease-in-out;
+}
+
+.transaction-actions button:hover {
+    opacity: 1;
 } 
