@@ -99,7 +99,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Set up event delegation for transactions list
         const transactionsList = document.getElementById('transactionsList');
         if (transactionsList) {
-            transactionsList.addEventListener('click', async (e) => {
+            // Remove any existing event listeners by cloning and replacing
+            const newTransactionsList = transactionsList.cloneNode(true);
+            transactionsList.parentNode.replaceChild(newTransactionsList, transactionsList);
+
+            // Add single event listener for all transaction actions
+            newTransactionsList.addEventListener('click', async (e) => {
                 const button = e.target.closest('button[data-action]');
                 if (!button) return;
                 
@@ -118,6 +123,21 @@ document.addEventListener('DOMContentLoaded', async () => {
         const dateInput = document.getElementById('transactionDate');
         if (dateInput && !dateInput.value) {
             dateInput.value = new Date().toISOString().split('T')[0];
+        }
+
+        // Set up modal close handlers
+        const modal = document.getElementById('transactionModal');
+        const closeBtn = modal?.querySelector('.close-modal');
+        if (modal && closeBtn) {
+            closeBtn.addEventListener('click', () => {
+                modal.style.display = 'none';
+            });
+
+            window.addEventListener('click', (event) => {
+                if (event.target === modal) {
+                    modal.style.display = 'none';
+                }
+            });
         }
     } catch (error) {
         console.error('Error initializing transactions:', error);

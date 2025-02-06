@@ -24,21 +24,6 @@ async function loadTransactions() {
         const transactionsList = document.getElementById('transactionsList');
         if (transactionsList) {
             transactionsList.innerHTML = generateTransactionsTable(transactions);
-            
-            // Add event listeners for transaction actions
-            transactionsList.addEventListener('click', async (e) => {
-                const button = e.target.closest('button[data-action]');
-                if (!button) return;
-                
-                const action = button.dataset.action;
-                const id = button.dataset.id;
-                
-                if (action === 'view') {
-                    await viewTransaction(id);
-                } else if (action === 'delete') {
-                    await deleteTransaction(id);
-                }
-            });
         }
     } catch (error) {
         console.error('Error loading transactions:', error);
@@ -60,7 +45,7 @@ function generateTransactionsTable(transactions) {
             </thead>
             <tbody>
                 ${transactions.map(transaction => `
-                    <tr>
+                    <tr data-transaction-id="${transaction.id}">
                         <td>${transaction.transaction_date}</td>
                         <td>${transaction.description}</td>
                         <td>${transaction.reference_number || ''}</td>
@@ -160,7 +145,26 @@ async function createTransaction(transactionData) {
         }
         
         const result = await response.json();
-        await loadTransactions();
+        // Instead of reloading all transactions, just add the new one to the table
+        const transactionsList = document.getElementById('transactionsList');
+        if (transactionsList) {
+            const table = transactionsList.querySelector('table tbody');
+            if (table) {
+                const newRow = document.createElement('tr');
+                newRow.dataset.transactionId = result.id;
+                newRow.innerHTML = `
+                    <td>${result.transaction_date}</td>
+                    <td>${result.description}</td>
+                    <td>${result.reference_number || ''}</td>
+                    <td>${result.status}</td>
+                    <td class="transaction-actions">
+                        <button type="button" data-action="view" data-id="${result.id}">View</button>
+                        <button type="button" data-action="delete" data-id="${result.id}">Delete</button>
+                    </td>
+                `;
+                table.insertBefore(newRow, table.firstChild);
+            }
+        }
         return result;
     } catch (error) {
         console.error('Error creating transaction:', error);
@@ -268,34 +272,38 @@ async function deleteTransaction(id) {
     }
 
     try {
+        // Find and remove the transaction row from the UI immediately
+        const transactionRow = document.querySelector(`tr[data-transaction-id="${id}"]`);
+        if (transactionRow) {
+            transactionRow.remove();
+        }
+
         const response = await fetch(`${API_URL}/transactions/${id}`, {
             method: 'DELETE'
         });
         
+        // Handle different response statuses
         if (response.status === 404) {
-            alert('Transaction has already been deleted');
-            await loadTransactions(); // Refresh the list
-            return;
+            console.log('Transaction was already deleted');
+            return; // No need to show an alert or reload, just return
         }
         
         if (!response.ok) {
+            // If there was an error and we removed the row, add it back
+            if (transactionRow && transactionRow.parentElement) {
+                transactionRow.parentElement.appendChild(transactionRow);
+            }
             const errorData = await response.json().catch(() => null);
             throw new Error(errorData?.detail || `Server error: ${response.status}`);
         }
         
-        // Remove the transaction row from the UI immediately
-        const transactionRow = document.querySelector(`button[data-id="${id}"]`)?.closest('tr');
-        if (transactionRow) {
-            transactionRow.remove();
-        }
-        
+        // Only show success message if the deletion was successful
         alert('Transaction deleted successfully');
+        
     } catch (error) {
         console.error('Error deleting transaction:', error);
-        if (error.message.includes('404') || error.message.includes('not found')) {
-            alert('Transaction has already been deleted');
-            await loadTransactions(); // Refresh the list to show current state
-        } else {
+        // Only show error if it's not a 404
+        if (!error.message.includes('404') && !error.message.includes('not found')) {
             alert('Error deleting transaction: ' + error.message);
         }
     }
