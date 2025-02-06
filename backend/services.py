@@ -748,61 +748,123 @@ class BookkeepingService:
         )
         
     def get_income_statement(self, start_date: date, end_date: date) -> models.IncomeStatement:
-        """
-        Generate an income statement report for a specific period.
+        print(f"Generating income statement from {start_date} to {end_date}")
         
-        Args:
-            start_date: Beginning of the reporting period
-            end_date: End of the reporting period
+        with self.db as session:
+            # Get all income and expense accounts
+            income_accounts = session.query(models.Account).filter(models.Account.type == models.AccountType.INCOME).all()
+            expense_accounts = session.query(models.Account).filter(models.Account.type == models.AccountType.EXPENSE).all()
+
+            # Debug print account details
+            print("\nIncome Accounts:")
+            for acc in income_accounts:
+                print(f"ID: {acc.id}, Name: {acc.name}, Type: {acc.type}")
+
+            print("\nExpense Accounts:")
+            for acc in expense_accounts:
+                print(f"ID: {acc.id}, Name: {acc.name}, Type: {acc.type}")
+
+            # Get all journal entries for income and expense accounts in the date range
+            all_entries = session.query(
+                models.JournalEntry, models.Account
+            ).join(
+                models.Transaction,
+                models.JournalEntry.transaction_id == models.Transaction.id
+            ).join(
+                models.Account,
+                models.JournalEntry.account_id == models.Account.id
+            ).filter(
+                models.Transaction.transaction_date >= start_date,
+                models.Transaction.transaction_date <= end_date,
+                models.Account.type.in_([models.AccountType.INCOME, models.AccountType.EXPENSE])
+            ).all()
+
+            print(f"\nFound {len(all_entries)} total journal entries in date range")
+            print("Sample of journal entries with account details:")
+            for entry, account in all_entries[:5]:
+                print(f"Account: {account.name} (ID: {account.id}, Type: {account.type})")
+                print(f"Entry: Debit={entry.debit_amount}, Credit={entry.credit_amount}")
+
+            # Process income accounts
+            income = []
+            total_income = Decimal('0.00')
             
-        Returns:
-            IncomeStatement: Income statement report containing:
-            - List of income accounts with balances
-            - List of expense accounts with balances
-            - Total income
-            - Total expenses
-            - Net income
-        """
-        # Get all income and expense accounts
-        income_accounts = self.db.query(models.Account).filter(models.Account.type == models.AccountType.INCOME).all()
-        expense_accounts = self.db.query(models.Account).filter(models.Account.type == models.AccountType.EXPENSE).all()
-        
-        # Calculate income totals
-        income_details = []
-        total_income = Decimal('0.00')
-        for account in income_accounts:
-            # Get the change in balance over the period
-            start_balance = self.get_account_balance(account.id, start_date)
-            end_balance = self.get_account_balance(account.id, end_date)
-            period_activity = end_balance - start_balance
-            
-            if period_activity != 0:
-                income_details.append({
-                    'name': account.name,
-                    'balance': -period_activity  # Income accounts are normally credit balances
-                })
-                total_income += -period_activity
+            for account in income_accounts:
+                print(f"\nProcessing income account: {account.name} (ID: {account.id})")
                 
-        # Calculate expense totals
-        expense_details = []
-        total_expenses = Decimal('0.00')
-        for account in expense_accounts:
-            # Get the change in balance over the period
-            start_balance = self.get_account_balance(account.id, start_date)
-            end_balance = self.get_account_balance(account.id, end_date)
-            period_activity = end_balance - start_balance
-            
-            if period_activity != 0:
-                expense_details.append({
-                    'name': account.name,
-                    'balance': period_activity  # Expense accounts are normally debit balances
-                })
-                total_expenses += period_activity
+                # Get all entries for this account in the date range
+                account_entries = session.query(models.JournalEntry).join(
+                    models.Transaction,
+                    models.JournalEntry.transaction_id == models.Transaction.id
+                ).filter(
+                    models.JournalEntry.account_id == account.id,
+                    models.Transaction.transaction_date >= start_date,
+                    models.Transaction.transaction_date <= end_date
+                ).all()
                 
-        return models.IncomeStatement(
-            income=income_details,
-            expenses=expense_details,
-            total_income=total_income,
-            total_expenses=total_expenses,
-            net_income=total_income - total_expenses
-        ) 
+                print(f"Found {len(account_entries)} entries for {account.name}")
+                
+                # Calculate totals
+                total_debits = sum((entry.debit_amount for entry in account_entries), Decimal('0.00'))
+                total_credits = sum((entry.credit_amount for entry in account_entries), Decimal('0.00'))
+                
+                print(f"Account {account.name}: debits={total_debits}, credits={total_credits}")
+                
+                # For income accounts, credits increase the balance (normal balance is credit)
+                balance = total_credits - total_debits
+                
+                if balance != 0:
+                    income.append({
+                        'name': account.name,
+                        'balance': balance
+                    })
+                    total_income += balance
+            
+            print(f"\nTotal income: {total_income}")
+            
+            # Process expense accounts
+            expenses = []
+            total_expenses = Decimal('0.00')
+            
+            for account in expense_accounts:
+                print(f"\nProcessing expense account: {account.name} (ID: {account.id})")
+                
+                # Get all entries for this account in the date range
+                account_entries = session.query(models.JournalEntry).join(
+                    models.Transaction,
+                    models.JournalEntry.transaction_id == models.Transaction.id
+                ).filter(
+                    models.JournalEntry.account_id == account.id,
+                    models.Transaction.transaction_date >= start_date,
+                    models.Transaction.transaction_date <= end_date
+                ).all()
+                
+                print(f"Found {len(account_entries)} entries for {account.name}")
+                
+                # Calculate totals
+                total_debits = sum((entry.debit_amount for entry in account_entries), Decimal('0.00'))
+                total_credits = sum((entry.credit_amount for entry in account_entries), Decimal('0.00'))
+                
+                print(f"Account {account.name}: debits={total_debits}, credits={total_credits}")
+                
+                # For expense accounts, debits increase the balance (normal balance is debit)
+                balance = total_debits - total_credits
+                
+                if balance != 0:
+                    expenses.append({
+                        'name': account.name,
+                        'balance': balance
+                    })
+                    total_expenses += balance
+            
+            print(f"\nTotal expenses: {total_expenses}")
+            net_income = total_income - total_expenses
+            print(f"Net income: {net_income}")
+            
+            return models.IncomeStatement(
+                income=income,
+                expenses=expenses,
+                total_income=total_income,
+                total_expenses=total_expenses,
+                net_income=net_income
+            )

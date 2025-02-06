@@ -95,19 +95,20 @@ export async function loadIncomeStatement(startDate, endDate) {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
         const data = await response.json();
-        console.log('Income Statement Data:', data); // Debug log
+        console.log('Income Statement Data:', data);
 
         // Ensure data has the expected structure
         const income = data.income || [];
         const expenses = data.expenses || [];
-        const totalIncome = data.total_income;
-        const totalExpenses = data.total_expenses;
-        const netIncome = data.net_income;
+        const totalIncome = data.total_income || 0;
+        const totalExpenses = data.total_expenses || 0;
+        const netIncome = data.net_income || 0;
         
         // Generate HTML for income statement
         let html = '<div class="income-statement">';
         
         // Income section
+        html += '<div class="statement-section">';
         html += '<h3>Income</h3>';
         html += '<table>';
         html += '<tbody>';
@@ -115,8 +116,8 @@ export async function loadIncomeStatement(startDate, endDate) {
             html += `<tr><td colspan="2" class="text-center">No income entries for this period</td></tr>`;
         } else {
             income.forEach(item => {
-                // Check for both amount and balance properties
-                const amount = item.amount ?? item.balance ?? 0;
+                // Income accounts are credit balances, so we show positive numbers
+                const amount = Math.abs(item.balance || 0);
                 html += `<tr>
                     <td>${item.name}</td>
                     <td class="text-right">${formatCurrency(amount)}</td>
@@ -125,11 +126,13 @@ export async function loadIncomeStatement(startDate, endDate) {
         }
         html += `<tr class="total-row">
             <td>Total Income</td>
-            <td class="text-right">${formatCurrency(totalIncome)}</td>
+            <td class="text-right">${formatCurrency(Math.abs(totalIncome))}</td>
         </tr>`;
         html += '</tbody></table>';
+        html += '</div>';
         
         // Expenses section
+        html += '<div class="statement-section">';
         html += '<h3>Expenses</h3>';
         html += '<table>';
         html += '<tbody>';
@@ -137,8 +140,8 @@ export async function loadIncomeStatement(startDate, endDate) {
             html += `<tr><td colspan="2" class="text-center">No expense entries for this period</td></tr>`;
         } else {
             expenses.forEach(item => {
-                // Check for both amount and balance properties
-                const amount = item.amount ?? item.balance ?? 0;
+                // Expense accounts are debit balances, so we show positive numbers
+                const amount = Math.abs(item.balance || 0);
                 html += `<tr>
                     <td>${item.name}</td>
                     <td class="text-right">${formatCurrency(amount)}</td>
@@ -147,18 +150,22 @@ export async function loadIncomeStatement(startDate, endDate) {
         }
         html += `<tr class="total-row">
             <td>Total Expenses</td>
-            <td class="text-right">${formatCurrency(totalExpenses)}</td>
+            <td class="text-right">${formatCurrency(Math.abs(totalExpenses))}</td>
         </tr>`;
         html += '</tbody></table>';
+        html += '</div>';
         
-        // Net Income
+        // Net Income section
+        html += '<div class="statement-section net-income-section">';
+        html += '<h3>Net Income</h3>';
         html += '<table>';
         html += '<tbody>';
         html += `<tr class="grand-total-row">
-            <td>Net Income</td>
+            <td>Net Income for Period</td>
             <td class="text-right">${formatCurrency(netIncome)}</td>
         </tr>`;
         html += '</tbody></table>';
+        html += '</div>';
         
         html += '</div>';
         
