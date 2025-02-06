@@ -359,6 +359,18 @@ async function handleEditAccount(id) {
     const submitButton = form.querySelector('button[type="submit"]');
 
     if (form && nameInput && typeSelect && categorySelect && descInput && submitButton) {
+        // Add visual feedback class to the form container
+        const formContainer = form.closest('.form-container');
+        formContainer.classList.add('editing');
+        
+        // Add editing indicator to form title
+        const formTitle = formContainer.querySelector('h3');
+        formTitle.textContent = `Edit Account: ${account.name}`;
+        
+        // Scroll to form with smooth animation
+        formContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+        // Fill form with account data
         nameInput.value = account.name;
         typeSelect.value = account.type;
         typeSelect.disabled = true; // Disable type selection in edit mode
@@ -376,6 +388,26 @@ async function handleEditAccount(id) {
         // Update form for edit mode
         form.dataset.editId = id;
         submitButton.textContent = 'Update Account';
+
+        // Add a cancel button if it doesn't exist
+        if (!form.querySelector('.cancel-edit-btn')) {
+            const cancelButton = document.createElement('button');
+            cancelButton.type = 'button';
+            cancelButton.className = 'cancel-edit-btn';
+            cancelButton.textContent = 'Cancel Edit';
+            cancelButton.onclick = () => {
+                // Reset form and remove editing state
+                form.reset();
+                form.dataset.editId = '';
+                formContainer.classList.remove('editing');
+                formTitle.textContent = 'Create Account';
+                submitButton.textContent = 'Create Account';
+                typeSelect.disabled = false;
+                categorySelect.disabled = true;
+                cancelButton.remove();
+            };
+            submitButton.parentNode.insertBefore(cancelButton, submitButton.nextSibling);
+        }
     }
 }
 

@@ -9,20 +9,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Set up account type change handler
         const accountTypeSelect = document.getElementById('accountType');
         if (accountTypeSelect) {
-            // Remove any existing event listeners by cloning and replacing
-            const newAccountTypeSelect = accountTypeSelect.cloneNode(true);
-            accountTypeSelect.parentNode.replaceChild(newAccountTypeSelect, accountTypeSelect);
-            newAccountTypeSelect.addEventListener('change', updateCategoryDropdown);
+            accountTypeSelect.addEventListener('change', updateCategoryDropdown);
         }
 
         // Set up form submission handler
         const accountForm = document.getElementById('accountForm');
         if (accountForm) {
-            // Remove any existing event listeners by cloning and replacing
-            const newAccountForm = accountForm.cloneNode(true);
-            accountForm.parentNode.replaceChild(newAccountForm, accountForm);
-            
-            newAccountForm.addEventListener('submit', async (event) => {
+            accountForm.addEventListener('submit', async (event) => {
                 event.preventDefault();
                 try {
                     const accountData = {
@@ -32,20 +25,43 @@ document.addEventListener('DOMContentLoaded', async () => {
                         description: document.getElementById('accountDescription').value
                     };
                     
-                    const editId = newAccountForm.dataset.editId;
+                    const editId = accountForm.dataset.editId;
                     if (editId) {
                         await updateAccount(editId, accountData);
+                        
+                        // Reset form styling and state
+                        const formContainer = document.querySelector('.form-container');
+                        const formTitle = formContainer.querySelector('h3');
+                        const submitButton = accountForm.querySelector('button[type="submit"]');
+                        const cancelButton = accountForm.querySelector('.cancel-edit-btn');
+                        const typeSelect = document.getElementById('accountType');
+                        const categorySelect = document.getElementById('accountCategory');
+                        
+                        // Update visual state
+                        formContainer.classList.remove('editing');
+                        formTitle.textContent = 'Create Account';
+                        submitButton.textContent = 'Create Account';
+                        
+                        // Remove cancel button
+                        if (cancelButton) {
+                            cancelButton.remove();
+                        }
+                        
+                        // Reset form state
+                        accountForm.dataset.editId = '';
+                        accountForm.reset();
+                        
+                        // Reset select elements
+                        typeSelect.disabled = false;
+                        categorySelect.disabled = true;
+                        
                         alert('Account updated successfully!');
-                        newAccountForm.dataset.editId = ''; // Clear edit mode
-                        document.querySelector('button[type="submit"]').textContent = 'Create Account';
                     } else {
                         await createAccount(accountData);
+                        accountForm.reset();
+                        document.getElementById('accountCategory').disabled = true;
                         alert('Account created successfully!');
                     }
-                    
-                    newAccountForm.reset();
-                    document.getElementById('accountCategory').disabled = true;
-                    document.getElementById('accountType').disabled = false;
                 } catch (error) {
                     console.error('Error handling account:', error);
                     alert('Error: ' + error.message);

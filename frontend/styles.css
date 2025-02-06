@@ -72,6 +72,7 @@ h3 {
 /* Forms */
 .form-container {
     margin-bottom: 2rem;
+    padding-bottom: 1rem;
 }
 
 .form-group {
@@ -116,8 +117,9 @@ button:hover {
 
 /* Lists */
 .list-container {
-    border-top: 1px solid #ddd;
-    padding-top: 1rem;
+    margin-top: 2rem;
+    padding-top: 2rem;
+    border-top: 1px solid #dee2e6;
 }
 
 /* Journal Entries */
@@ -813,4 +815,49 @@ th {
     justify-content: space-between;
     padding: 8px 0;
     font-weight: 600;
+}
+
+/* Account Form Editing State */
+.form-container.editing {
+    background-color: #f8f9fa;
+    border-left: 4px solid #333;
+    padding: 1.5rem;
+    margin: -1.5rem -1.5rem 1.5rem -1.5rem;
+    border-radius: 4px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    transition: all 0.3s ease;
+}
+
+.form-container.editing h3 {
+    color: #333;
+    font-weight: 600;
+}
+
+.cancel-edit-btn {
+    background-color: #6c757d;
+    color: white;
+    padding: 0.5rem 1rem;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 1rem;
+    margin-left: 0.5rem;
+    transition: background-color 0.2s ease;
+}
+
+.cancel-edit-btn:hover {
+    background-color: #5a6268;
+}
+
+/* Improve form buttons layout */
+.form-container form {
+    position: relative;
+}
+
+.form-container form button {
+    margin-right: 0.5rem;
+}
+
+.form-container form button:last-child {
+    margin-right: 0;
 }
