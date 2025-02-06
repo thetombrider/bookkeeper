@@ -15,6 +15,9 @@ export {
 async function loadTransactions() {
     try {
         const response = await fetch(`${API_URL}/transactions/`);
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
         const transactions = await response.json();
         
         // Update transactions list
@@ -173,9 +176,86 @@ async function viewTransaction(id) {
         }
         const transaction = await response.json();
         
-        // For now, just show the transaction details in an alert
-        // In a real application, you might want to show this in a modal or dedicated view
-        alert(JSON.stringify(transaction, null, 2));
+        // Get the modal elements
+        const modal = document.getElementById('transactionModal');
+        const modalBody = modal.querySelector('.modal-body');
+        const closeBtn = modal.querySelector('.close-modal');
+        
+        // Format the transaction details in HTML
+        let detailsHtml = `
+            <div class="transaction-detail">
+                <h4>Basic Information</h4>
+                <div class="transaction-detail-row">
+                    <span>Date:</span>
+                    <span>${transaction.transaction_date}</span>
+                </div>
+                <div class="transaction-detail-row">
+                    <span>Description:</span>
+                    <span>${transaction.description}</span>
+                </div>
+                <div class="transaction-detail-row">
+                    <span>Reference:</span>
+                    <span>${transaction.reference_number || '-'}</span>
+                </div>
+                <div class="transaction-detail-row">
+                    <span>Status:</span>
+                    <span>${transaction.status}</span>
+                </div>
+            </div>
+
+            <div class="transaction-entries">
+                <h4>Journal Entries</h4>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Account</th>
+                            <th>Debit</th>
+                            <th>Credit</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${transaction.journal_entries.map(entry => {
+                            const account = entry.account;
+                            return `
+                                <tr>
+                                    <td>${account.code} - ${account.name}</td>
+                                    <td>${formatCurrency(entry.debit_amount)}</td>
+                                    <td>${formatCurrency(entry.credit_amount)}</td>
+                                </tr>
+                            `;
+                        }).join('')}
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="transaction-totals">
+                <div class="transaction-total-row">
+                    <span>Total Debits:</span>
+                    <span>${formatCurrency(transaction.journal_entries.reduce((sum, entry) => sum + parseFloat(entry.debit_amount), 0))}</span>
+                </div>
+                <div class="transaction-total-row">
+                    <span>Total Credits:</span>
+                    <span>${formatCurrency(transaction.journal_entries.reduce((sum, entry) => sum + parseFloat(entry.credit_amount), 0))}</span>
+                </div>
+            </div>
+        `;
+
+        // Update modal content and show it
+        modalBody.innerHTML = detailsHtml;
+        modal.style.display = 'block';
+
+        // Close modal when clicking the close button
+        closeBtn.onclick = () => {
+            modal.style.display = 'none';
+        };
+
+        // Close modal when clicking outside of it
+        window.onclick = (event) => {
+            if (event.target === modal) {
+                modal.style.display = 'none';
+            }
+        };
+
     } catch (error) {
         console.error('Error fetching transaction:', error);
         alert('Error viewing transaction details');
@@ -192,14 +272,31 @@ async function deleteTransaction(id) {
             method: 'DELETE'
         });
         
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
+        if (response.status === 404) {
+            alert('Transaction has already been deleted');
+            await loadTransactions(); // Refresh the list
+            return;
         }
         
-        await loadTransactions();
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => null);
+            throw new Error(errorData?.detail || `Server error: ${response.status}`);
+        }
+        
+        // Remove the transaction row from the UI immediately
+        const transactionRow = document.querySelector(`button[data-id="${id}"]`)?.closest('tr');
+        if (transactionRow) {
+            transactionRow.remove();
+        }
+        
         alert('Transaction deleted successfully');
     } catch (error) {
         console.error('Error deleting transaction:', error);
-        alert('Error deleting transaction');
+        if (error.message.includes('404') || error.message.includes('not found')) {
+            alert('Transaction has already been deleted');
+            await loadTransactions(); // Refresh the list to show current state
+        } else {
+            alert('Error deleting transaction: ' + error.message);
+        }
     }
 }
