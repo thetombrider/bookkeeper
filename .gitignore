@@ -4,5 +4,5 @@ accounts-tommy.txt
 dbpw.txt
 migrations/
 .cursor
-__pycache__/
+__pycache__
 runs/

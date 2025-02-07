@@ -5,21 +5,47 @@ export let allCategories = [];
 
 export function handleEditCategory(id, name, description) {
     // Fill the form with category data
+    const form = document.getElementById('categoryForm');
     const nameInput = document.getElementById('categoryName');
     const descInput = document.getElementById('categoryDescription');
-    const form = document.getElementById('categoryForm');
     
-    if (nameInput && descInput && form) {
+    if (form && nameInput && descInput) {
+        // Add visual feedback class to the form container
+        const formContainer = form.closest('.form-container');
+        formContainer.classList.add('editing');
+        
+        // Add editing indicator to form title
+        const formTitle = formContainer.querySelector('h3');
+        formTitle.textContent = `Edit Category: ${name}`;
+        
+        // Scroll to form with smooth animation
+        formContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+        // Fill form with category data
         nameInput.value = name;
-        descInput.value = description;
+        descInput.value = description || '';
         
-        // Update form to handle edit instead of create
+        // Update form for edit mode
         form.dataset.editId = id;
-        
-        // Change button text
         const submitButton = form.querySelector('button[type="submit"]');
-        if (submitButton) {
-            submitButton.textContent = 'Update Category';
+        submitButton.textContent = 'Update Category';
+
+        // Add a cancel button if it doesn't exist
+        if (!form.querySelector('.cancel-edit-btn')) {
+            const cancelButton = document.createElement('button');
+            cancelButton.type = 'button';
+            cancelButton.className = 'cancel-edit-btn';
+            cancelButton.textContent = 'Cancel Edit';
+            cancelButton.onclick = () => {
+                // Reset form and remove editing state
+                form.reset();
+                form.dataset.editId = '';
+                formContainer.classList.remove('editing');
+                formTitle.textContent = 'Create Category';
+                submitButton.textContent = 'Create Category';
+                cancelButton.remove();
+            };
+            submitButton.parentNode.insertBefore(cancelButton, submitButton.nextSibling);
         }
     }
 }
@@ -181,11 +207,27 @@ export async function createCategory(event) {
     try {
         if (editId) {
             await updateCategory(editId, categoryData);
-            form.dataset.editId = '';
+            
+            // Reset form styling and state
+            const formContainer = form.closest('.form-container');
+            const formTitle = formContainer.querySelector('h3');
             const submitButton = form.querySelector('button[type="submit"]');
-            if (submitButton) {
-                submitButton.textContent = 'Create Category';
+            const cancelButton = form.querySelector('.cancel-edit-btn');
+            
+            // Update visual state
+            formContainer.classList.remove('editing');
+            formTitle.textContent = 'Create Category';
+            submitButton.textContent = 'Create Category';
+            
+            // Remove cancel button
+            if (cancelButton) {
+                cancelButton.remove();
             }
+            
+            // Reset form state
+            form.dataset.editId = '';
+            form.reset();
+            
             showSuccessMessage('Category updated successfully!');
         } else {
             const response = await fetch(`${API_URL}/account-categories/`, {
