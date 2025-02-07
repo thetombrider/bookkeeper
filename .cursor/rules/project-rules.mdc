@@ -1,9 +1,192 @@
 ---
-description:
-globs:
+description: 
+globs: 
 ---
+# Bookkeeper Project Cursor Rules
 
-# Your rule content
+# Project Structure Rules
+structure:
+  backend:
+    - models.py should contain all SQLAlchemy models and Pydantic schemas
+    - api.py should contain all FastAPI route definitions
+    - services.py should contain all business logic
+    - database.py should handle database connections and sessions
+  frontend:
+    - js/modules/ should contain reusable JavaScript modules
+    - js/pages/ should contain page-specific JavaScript
+    - styles/ should contain CSS files (will be replaced with Bootstrap)
+    - templates/ should contain reusable HTML templates
 
-- You can @ files here
-- You can use markdown but dont have to
+# Code Style Rules
+style:
+  python:
+    - Use type hints for all function parameters and return values
+    - Use docstrings for all classes and methods
+    - Follow PEP 8 guidelines
+    - Keep functions under 50 lines
+    - Use dependency injection pattern in services
+  javascript:
+    - Use ES6+ features
+    - Use module pattern for all JavaScript files
+    - Keep functions pure when possible
+    - Use async/await for all API calls
+    - Use consistent error handling patterns
+  html:
+    - Use semantic HTML5 elements
+    - Keep classes Bootstrap-compatible for future migration
+    - Use data-* attributes for JavaScript hooks
+    - Maintain consistent indentation
+
+# Database Rules
+database:
+  - Use migrations for all database changes
+  - Keep models normalized
+  - Use foreign key constraints
+  - Include indexes on frequently queried fields
+  - Use appropriate column types and constraints
+
+# API Rules
+api:
+  - Use RESTful conventions
+  - Include comprehensive error handling
+  - Validate all input data
+  - Use appropriate HTTP status codes
+  - Document all endpoints with OpenAPI/Swagger
+
+# Testing Rules
+testing:
+  backend:
+    - Write unit tests for all services
+    - Write integration tests for API endpoints
+    - Test database migrations
+    - Mock external dependencies
+  frontend:
+    - Test all JavaScript modules
+    - Test form validations
+    - Test API integrations
+    - Test UI interactions
+
+# Security Rules
+security:
+  - Sanitize all user input
+  - Use parameterized queries
+  - Implement CORS properly
+  - Store sensitive data in environment variables
+  - Use HTTPS in production
+
+# Future Migration Rules
+migration:
+  bootstrap:
+    - Use utility classes that match Bootstrap conventions
+    - Keep CSS modular for easy replacement
+    - Use flexbox and grid layouts
+    - Maintain semantic class names
+    - Document custom styles that will need Bootstrap equivalents
+
+# Documentation Rules
+documentation:
+  - Keep README.md updated
+  - Document all API endpoints
+  - Include setup instructions
+  - Document environment variables
+  - Include migration guides
+
+# Git Rules
+git:
+  - Use semantic commit messages
+  - Keep commits atomic
+  - Use feature branches
+  - Write descriptive PR descriptions
+  - Include tests with PRs
+
+# Dependencies
+dependencies:
+  - Pin dependency versions
+  - Use requirements.txt for Python
+  - Document third-party integrations
+  - Keep dependencies up to date
+  - Check for security vulnerabilities
+
+# Error Handling
+error_handling:
+  - Log all errors appropriately
+  - Use custom error classes
+  - Include stack traces in development
+  - Provide user-friendly error messages
+  - Handle edge cases
+
+# Performance
+performance:
+  - Optimize database queries
+  - Use appropriate indexes
+  - Minimize API calls
+  - Implement caching where appropriate
+  - Monitor query performance
+
+# Accessibility
+accessibility:
+  - Use ARIA labels where needed
+  - Maintain keyboard navigation
+  - Use semantic HTML
+  - Provide alt text for images
+  - Test with screen readers
+
+# Code Organization
+organization:
+  - Keep related code together
+  - Use consistent file naming
+  - Maintain clear module boundaries
+  - Document module dependencies
+  - Use appropriate design patterns
+
+# Deployment
+deployment:
+  - Use environment variables
+  - Document deployment process
+  - Include health checks
+  - Monitor application metrics
+  - Backup database regularly
+
+# Bootstrap Migration Specific Rules
+bootstrap_migration:
+  components:
+    - Map current custom components to Bootstrap equivalents
+    - Document any custom components that need special handling
+    - Plan component migration order
+    - Test each component after migration
+    - Maintain responsive design
+  
+  css:
+    - Identify Bootstrap utility classes for current custom styles
+    - Plan gradual CSS replacement strategy
+    - Keep custom CSS organized for easy removal
+    - Document any required Bootstrap overrides
+    - Test responsive breakpoints
+
+  javascript:
+    - Use Bootstrap's JavaScript components where possible
+    - Document custom JavaScript that interacts with UI
+    - Plan for Bootstrap event handling
+    - Test all interactive components
+    - Maintain current functionality during migration
+
+  layout:
+    - Use Bootstrap's grid system
+    - Convert current layouts to Bootstrap containers
+    - Maintain responsive behavior
+    - Document layout dependencies
+    - Test across different screen sizes
+
+  forms:
+    - Use Bootstrap form classes
+    - Maintain current validation logic
+    - Test form submissions
+    - Document custom form behaviors
+    - Ensure accessibility
+
+  testing:
+    - Create test plan for migration
+    - Test each component individually
+    - Test component interactions
+    - Verify responsive behavior
+    - Document testing procedures 
