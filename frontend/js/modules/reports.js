@@ -12,71 +12,89 @@ export async function loadBalanceSheet(asOfDate = null) {
         }
         const data = await response.json();
         
-        // Generate HTML for balance sheet with two columns
+        // Generate HTML for balance sheet with Bootstrap grid
         let html = `
-            <div class="balance-sheet">
-                <div class="balance-sheet-column">
-                    <!-- Assets section -->
-                    <div class="statement-section">
-                        <h3>Assets</h3>
-                        <table>
-                            <tbody>
-                                ${data.assets.map(asset => `
-                                    <tr>
-                                        <td>${asset.name}</td>
-                                        <td class="text-right">${formatCurrency(asset.balance)}</td>
-                                    </tr>
-                                `).join('')}
-                                <tr class="total-row">
-                                    <td>Total Assets</td>
-                                    <td class="text-right">${formatCurrency(data.total_assets)}</td>
-                                </tr>
-                            </tbody>
-                        </table>
+            <div class="row">
+                <!-- Assets Column -->
+                <div class="col-md-6">
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h5 class="card-title">Assets</h5>
+                        </div>
+                        <div class="card-body p-0">
+                            <div class="table-responsive">
+                                <table class="table table-hover mb-0">
+                                    <tbody>
+                                        ${data.assets.map(asset => `
+                                            <tr>
+                                                <td>${asset.name}</td>
+                                                <td class="text-end numeric">${formatCurrency(asset.balance)}</td>
+                                            </tr>
+                                        `).join('')}
+                                        <tr class="table-light fw-bold">
+                                            <td>Total Assets</td>
+                                            <td class="text-end numeric">${formatCurrency(data.total_assets)}</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
-                <div class="balance-sheet-column">
-                    <!-- Liabilities section -->
-                    <div class="statement-section">
-                        <h3>Liabilities</h3>
-                        <table>
-                            <tbody>
-                                ${data.liabilities.map(liability => `
-                                    <tr>
-                                        <td>${liability.name}</td>
-                                        <td class="text-right">${formatCurrency(liability.balance)}</td>
-                                    </tr>
-                                `).join('')}
-                                <tr class="total-row">
-                                    <td>Total Liabilities</td>
-                                    <td class="text-right">${formatCurrency(data.total_liabilities)}</td>
-                                </tr>
-                            </tbody>
-                        </table>
+                <div class="col-md-6">
+                    <!-- Liabilities Section -->
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h5 class="card-title">Liabilities</h5>
+                        </div>
+                        <div class="card-body p-0">
+                            <div class="table-responsive">
+                                <table class="table table-hover mb-0">
+                                    <tbody>
+                                        ${data.liabilities.map(liability => `
+                                            <tr>
+                                                <td>${liability.name}</td>
+                                                <td class="text-end numeric">${formatCurrency(liability.balance)}</td>
+                                            </tr>
+                                        `).join('')}
+                                        <tr class="table-light fw-bold">
+                                            <td>Total Liabilities</td>
+                                            <td class="text-end numeric">${formatCurrency(data.total_liabilities)}</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
                     </div>
 
-                    <!-- Equity section -->
-                    <div class="statement-section">
-                        <h3>Equity</h3>
-                        <table>
-                            <tbody>
-                                ${data.equity.map(equity => `
-                                    <tr>
-                                        <td>${equity.name}</td>
-                                        <td class="text-right">${formatCurrency(equity.balance)}</td>
-                                    </tr>
-                                `).join('')}
-                                <tr class="total-row">
-                                    <td>Total Equity</td>
-                                    <td class="text-right">${formatCurrency(data.total_equity)}</td>
-                                </tr>
-                                <tr class="grand-total-row">
-                                    <td>Total Liabilities and Equity</td>
-                                    <td class="text-right">${formatCurrency(data.total_liabilities_and_equity)}</td>
-                                </tr>
-                            </tbody>
-                        </table>
+                    <!-- Equity Section -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="card-title">Equity</h5>
+                        </div>
+                        <div class="card-body p-0">
+                            <div class="table-responsive">
+                                <table class="table table-hover mb-0">
+                                    <tbody>
+                                        ${data.equity.map(equity => `
+                                            <tr>
+                                                <td>${equity.name}</td>
+                                                <td class="text-end numeric">${formatCurrency(equity.balance)}</td>
+                                            </tr>
+                                        `).join('')}
+                                        <tr class="table-light fw-bold">
+                                            <td>Total Equity</td>
+                                            <td class="text-end numeric">${formatCurrency(data.total_equity)}</td>
+                                        </tr>
+                                        <tr class="table-primary fw-bold">
+                                            <td>Total Liabilities and Equity</td>
+                                            <td class="text-end numeric">${formatCurrency(data.total_liabilities_and_equity)}</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>`;
@@ -84,7 +102,12 @@ export async function loadBalanceSheet(asOfDate = null) {
         document.getElementById('accountsTable').innerHTML = html;
     } catch (error) {
         console.error('Error loading balance sheet:', error);
-        alert('Error loading balance sheet. Please try again.');
+        document.getElementById('accountsTable').innerHTML = `
+            <div class="alert alert-danger" role="alert">
+                <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                Error loading balance sheet. Please try again.
+            </div>
+        `;
     }
 }
 
@@ -105,67 +128,103 @@ export async function loadIncomeStatement(startDate, endDate) {
         const netIncome = data.net_income || 0;
         
         // Generate HTML for income statement
-        let html = '<div class="income-statement">';
+        let html = '<div class="row">';
         
         // Income section
-        html += '<div class="statement-section">';
-        html += '<h3>Income</h3>';
-        html += '<table>';
-        html += '<tbody>';
+        html += `
+            <div class="col-12 mb-4">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title">Income</h5>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-hover mb-0">
+                                <tbody>`;
+        
         if (income.length === 0) {
-            html += `<tr><td colspan="2" class="text-center">No income entries for this period</td></tr>`;
+            html += `<tr><td colspan="2" class="text-center text-muted">No income entries for this period</td></tr>`;
         } else {
             income.forEach(item => {
-                // Income accounts are credit balances, so we show positive numbers
                 const amount = Math.abs(item.balance || 0);
-                html += `<tr>
-                    <td>${item.name}</td>
-                    <td class="text-right">${formatCurrency(amount)}</td>
-                </tr>`;
+                html += `
+                    <tr>
+                        <td>${item.name}</td>
+                        <td class="text-end numeric">${formatCurrency(amount)}</td>
+                    </tr>`;
             });
         }
-        html += `<tr class="total-row">
-            <td>Total Income</td>
-            <td class="text-right">${formatCurrency(Math.abs(totalIncome))}</td>
-        </tr>`;
-        html += '</tbody></table>';
-        html += '</div>';
+        
+        html += `
+                                    <tr class="table-light fw-bold">
+                                        <td>Total Income</td>
+                                        <td class="text-end numeric">${formatCurrency(Math.abs(totalIncome))}</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>`;
         
         // Expenses section
-        html += '<div class="statement-section">';
-        html += '<h3>Expenses</h3>';
-        html += '<table>';
-        html += '<tbody>';
+        html += `
+            <div class="col-12 mb-4">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title">Expenses</h5>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-hover mb-0">
+                                <tbody>`;
+        
         if (expenses.length === 0) {
-            html += `<tr><td colspan="2" class="text-center">No expense entries for this period</td></tr>`;
+            html += `<tr><td colspan="2" class="text-center text-muted">No expense entries for this period</td></tr>`;
         } else {
             expenses.forEach(item => {
-                // Expense accounts are debit balances, so we show positive numbers
                 const amount = Math.abs(item.balance || 0);
-                html += `<tr>
-                    <td>${item.name}</td>
-                    <td class="text-right">${formatCurrency(amount)}</td>
-                </tr>`;
+                html += `
+                    <tr>
+                        <td>${item.name}</td>
+                        <td class="text-end numeric">${formatCurrency(amount)}</td>
+                    </tr>`;
             });
         }
-        html += `<tr class="total-row">
-            <td>Total Expenses</td>
-            <td class="text-right">${formatCurrency(Math.abs(totalExpenses))}</td>
-        </tr>`;
-        html += '</tbody></table>';
-        html += '</div>';
+        
+        html += `
+                                    <tr class="table-light fw-bold">
+                                        <td>Total Expenses</td>
+                                        <td class="text-end numeric">${formatCurrency(Math.abs(totalExpenses))}</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>`;
         
         // Net Income section
-        html += '<div class="statement-section net-income-section">';
-        html += '<h3>Net Income</h3>';
-        html += '<table>';
-        html += '<tbody>';
-        html += `<tr class="grand-total-row">
-            <td>Net Income for Period</td>
-            <td class="text-right">${formatCurrency(netIncome)}</td>
-        </tr>`;
-        html += '</tbody></table>';
-        html += '</div>';
+        html += `
+            <div class="col-12">
+                <div class="card border-primary">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="card-title mb-0">Net Income</h5>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-hover mb-0">
+                                <tbody>
+                                    <tr class="fw-bold">
+                                        <td>Net Income for Period</td>
+                                        <td class="text-end numeric">${formatCurrency(netIncome)}</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>`;
         
         html += '</div>';
         
@@ -177,7 +236,15 @@ export async function loadIncomeStatement(startDate, endDate) {
         container.innerHTML = html;
     } catch (error) {
         console.error('Error loading income statement:', error);
-        alert('Error loading income statement. Please try again.');
+        const container = document.getElementById('incomeStatement');
+        if (container) {
+            container.innerHTML = `
+                <div class="alert alert-danger" role="alert">
+                    <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                    Error loading income statement. Please try again.
+                </div>
+            `;
+        }
     }
 }
 
@@ -189,28 +256,52 @@ export async function loadTrialBalance() {
         }
         const data = await response.json();
         
-        let html = '<table>';
-        html += '<thead><tr><th>Account</th><th>Debit</th><th>Credit</th></tr></thead>';
-        html += '<tbody>';
+        let html = `
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title">Trial Balance</h5>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Account</th>
+                                    <th class="text-end">Debit</th>
+                                    <th class="text-end">Credit</th>
+                                </tr>
+                            </thead>
+                            <tbody>`;
         
         data.accounts.forEach(account => {
-            html += `<tr>
-                <td>${account.name}</td>
-                <td class="text-right">${account.debit ? formatCurrency(account.debit) : ''}</td>
-                <td class="text-right">${account.credit ? formatCurrency(account.credit) : ''}</td>
-            </tr>`;
+            html += `
+                <tr>
+                    <td>${account.name}</td>
+                    <td class="text-end numeric">${account.debit ? formatCurrency(account.debit) : ''}</td>
+                    <td class="text-end numeric">${account.credit ? formatCurrency(account.credit) : ''}</td>
+                </tr>`;
         });
         
-        html += `<tr class="total-row">
-            <td>Totals</td>
-            <td class="text-right">${formatCurrency(data.total_debits)}</td>
-            <td class="text-right">${formatCurrency(data.total_credits)}</td>
-        </tr>`;
-        html += '</tbody></table>';
+        html += `
+                                <tr class="table-light fw-bold">
+                                    <td>Totals</td>
+                                    <td class="text-end numeric">${formatCurrency(data.total_debits)}</td>
+                                    <td class="text-end numeric">${formatCurrency(data.total_credits)}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>`;
         
         document.getElementById('trialBalance').innerHTML = html;
     } catch (error) {
         console.error('Error loading trial balance:', error);
-        alert('Error loading trial balance. Please try again.');
+        document.getElementById('trialBalance').innerHTML = `
+            <div class="alert alert-danger" role="alert">
+                <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                Error loading trial balance. Please try again.
+            </div>
+        `;
     }
 } 

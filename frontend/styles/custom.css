@@ -1,0 +1,189 @@
+/* Typography */
+:root {
+    --font-family-sans-serif: "Inter var", "Inter", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+body {
+    font-family: var(--font-family-sans-serif);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+}
+
+/* Headings */
+h1, h2, h3, h4, h5, h6,
+.h1, .h2, .h3, .h4, .h5, .h6 {
+    font-weight: 600;
+    letter-spacing: -0.02em;
+}
+
+/* Navigation */
+.navbar-brand {
+    font-weight: 700;
+    letter-spacing: -0.03em;
+}
+
+.nav-link {
+    font-weight: 500;
+}
+
+/* Forms */
+.form-label {
+    font-weight: 600;
+    font-size: 0.875rem;
+}
+
+.form-control {
+    font-size: 0.9375rem;
+}
+
+/* Tables */
+.table thead th {
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 0.75rem;
+    letter-spacing: 0.05em;
+    border-top: none;
+}
+
+/* Financial Data */
+.numeric {
+    font-feature-settings: "tnum" 1;
+    font-variant-numeric: tabular-nums;
+}
+
+.amount {
+    font-feature-settings: "tnum" 1;
+    font-variant-numeric: tabular-nums;
+    font-weight: 500;
+}
+
+.amount-large {
+    font-size: 1.25rem;
+    font-weight: 600;
+}
+
+/* Cards */
+.card {
+    border: none;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.card-header {
+    background-color: transparent;
+    border-bottom: 2px solid #f0f0f0;
+    padding-top: 1.25rem;
+    padding-bottom: 1.25rem;
+}
+
+.card-title {
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    margin-bottom: 0;
+}
+
+/* Buttons */
+.btn {
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    padding: 0.5rem 1rem;
+}
+
+.btn-sm {
+    padding: 0.25rem 0.75rem;
+}
+
+/* Form Container Editing State */
+.form-container.editing {
+    background-color: #f8f9fa;
+    border-left: 4px solid #333;
+    padding: 1.5rem;
+    margin: -1.5rem -1.5rem 1.5rem -1.5rem;
+    border-radius: 4px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    transition: all 0.3s ease;
+}
+
+.form-container.editing h3 {
+    color: #333;
+    font-weight: 600;
+}
+
+/* List Container */
+.list-container {
+    margin-top: 2rem;
+    padding-top: 2rem;
+    border-top: 1px solid #dee2e6;
+}
+
+/* Financial Statements */
+.statement-section {
+    margin-bottom: 2.5rem;
+}
+
+.statement-section:last-child {
+    margin-bottom: 0;
+}
+
+.statement-section h3 {
+    color: #333;
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 2px solid #dee2e6;
+}
+
+.statement-section .table {
+    margin-bottom: 0;
+}
+
+.statement-section .total-row {
+    font-weight: 600;
+    background-color: #f8f9fa;
+}
+
+.statement-section .grand-total-row {
+    font-weight: 700;
+    font-size: 1.1rem;
+    background-color: #ebf4ff;
+}
+
+/* Text Alignment */
+.text-right {
+    text-align: right !important;
+}
+
+.text-center {
+    text-align: center !important;
+}
+
+/* Small Text */
+small, .small {
+    font-size: 0.875rem;
+    font-weight: normal;
+}
+
+/* Status Badges */
+.status-badge {
+    display: inline-block;
+    padding: 0.25rem 0.75rem;
+    border-radius: 2rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.status-badge.pending {
+    background-color: #fff3cd;
+    color: #856404;
+}
+
+.status-badge.completed {
+    background-color: #d4edda;
+    color: #155724;
+}
+
+.status-badge.error {
+    background-color: #f8d7da;
+    color: #721c24;
+} 
