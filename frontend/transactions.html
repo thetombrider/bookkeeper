@@ -55,64 +55,75 @@
     <!-- Main Content -->
     <main class="container py-4">
         <section id="transactions">
+            <!-- Header with Title and Actions -->
             <div class="d-flex justify-content-between align-items-center mb-4">
                 <h2 class="mb-0">Transactions</h2>
                 <div class="d-flex gap-2">
-                    <button data-action="import-transactions" class="btn btn-outline-primary">
+                    <button class="btn btn-outline-primary" data-action="import-transactions">
                         <i class="bi bi-upload"></i> Import
                     </button>
-                    <button data-action="add-transaction" class="btn btn-primary">
+                    <button class="btn btn-primary" data-action="add-transaction">
                         <i class="bi bi-plus-lg"></i> Add Transaction
                     </button>
                 </div>
             </div>
 
             <!-- Transaction Form -->
-            <div id="transactionForm" class="form-container mb-4" style="display: none;">
-                <form id="transactionEditForm" class="card">
-                    <div class="card-body">
-                        <div class="row g-3">
+            <div id="transactionForm" class="card mb-4" style="display: none;">
+                <div class="card-header">
+                    <h3 class="card-title mb-0">Add Transaction</h3>
+                </div>
+                <div class="card-body">
+                    <form id="transactionEditForm">
+                        <div class="row g-3 mb-4">
+                            <!-- Basic Info -->
                             <div class="col-md-6">
                                 <label for="transactionDate" class="form-label">Date</label>
-                                <input type="date" id="transactionDate" name="date" class="form-control" required>
+                                <input type="date" id="transactionDate" class="form-control" required>
                             </div>
                             <div class="col-md-6">
                                 <label for="transactionDescription" class="form-label">Description</label>
-                                <input type="text" id="transactionDescription" name="description" class="form-control" required>
+                                <input type="text" id="transactionDescription" class="form-control" required>
+                            </div>
+                        </div>
+
+                        <!-- Journal Entries -->
+                        <div class="mb-4">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h4 class="mb-0">Journal Entries</h4>
+                                <button type="button" class="btn btn-outline-primary btn-sm" onclick="addJournalEntryRow()">
+                                    <i class="bi bi-plus"></i> Add Entry
+                                </button>
                             </div>
                             
-                            <!-- Debit Entry -->
-                            <div class="col-md-6">
-                                <label for="debitAccount" class="form-label">Debit Account</label>
-                                <select id="debitAccount" name="debit_account_id" class="form-select" required>
-                                    <option value="">Select account...</option>
-                                </select>
+                            <div class="journal-entries-list">
+                                <!-- Journal entries will be added here -->
                             </div>
-                            <div class="col-md-6">
-                                <label for="debitAmount" class="form-label">Amount</label>
-                                <div class="input-group">
-                                    <span class="input-group-text">€</span>
-                                    <input type="number" id="debitAmount" name="amount" class="form-control" step="0.01" required>
-                                </div>
-                            </div>
-                            
-                            <!-- Credit Entry -->
-                            <div class="col-md-6">
-                                <label for="creditAccount" class="form-label">Credit Account</label>
-                                <select id="creditAccount" name="credit_account_id" class="form-select" required>
-                                    <option value="">Select account...</option>
-                                </select>
-                            </div>
-                            
-                            <div class="col-12">
-                                <div class="d-flex gap-2">
-                                    <button type="submit" class="btn btn-primary">Save Transaction</button>
-                                    <button type="button" data-action="cancel-edit" class="btn btn-light">Cancel</button>
+
+                            <!-- Totals -->
+                            <div class="card bg-light mt-3">
+                                <div class="card-body">
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <label class="form-label">Total Debits:</label>
+                                            <div id="total-debits" class="h4 mb-0 numeric">€0,00</div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label">Total Credits:</label>
+                                            <div id="total-credits" class="h4 mb-0 numeric">€0,00</div>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
-                    </div>
-                </form>
+
+                        <!-- Form Actions -->
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-primary">Save Transaction</button>
+                            <button type="button" class="btn btn-light" data-action="cancel-edit">Cancel</button>
+                        </div>
+                    </form>
+                </div>
             </div>
 
             <!-- Filters -->
@@ -121,28 +132,28 @@
                     <div class="row g-3">
                         <div class="col-md-3">
                             <label for="filterStartDate" class="form-label">From</label>
-                            <input type="date" id="filterStartDate" class="form-control form-control-sm">
+                            <input type="date" id="filterStartDate" class="form-control">
                         </div>
                         <div class="col-md-3">
                             <label for="filterEndDate" class="form-label">To</label>
-                            <input type="date" id="filterEndDate" class="form-control form-control-sm">
+                            <input type="date" id="filterEndDate" class="form-control">
                         </div>
-                        <div class="col-md-3">
+                        <div class="col-md-4">
                             <label for="filterAccount" class="form-label">Account</label>
-                            <select id="filterAccount" class="form-select form-select-sm">
+                            <select id="filterAccount" class="form-select">
                                 <option value="">All accounts</option>
                             </select>
                         </div>
-                        <div class="col-md-3 d-flex align-items-end">
-                            <button data-action="apply-filters" class="btn btn-primary btn-sm w-100">
-                                <i class="bi bi-funnel-fill"></i> Apply Filters
+                        <div class="col-md-2 d-flex align-items-end">
+                            <button class="btn btn-primary w-100" data-action="apply-filters">
+                                <i class="bi bi-funnel"></i> Apply Filters
                             </button>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <!-- Transactions List -->
+            <!-- Transactions Table -->
             <div class="card">
                 <div class="card-body p-0">
                     <div class="table-responsive">
@@ -166,6 +177,35 @@
             </div>
         </section>
     </main>
+
+    <!-- Journal Entry Row Template -->
+    <template id="journalEntryTemplate">
+        <div class="journal-entry-row card mb-2">
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label">Account</label>
+                        <select class="form-select journal-entry-account" required>
+                            <option value="">Select account...</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">Debit</label>
+                        <input type="number" step="0.01" class="form-control journal-entry-debit" placeholder="0,00">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">Credit</label>
+                        <input type="number" step="0.01" class="form-control journal-entry-credit" placeholder="0,00">
+                    </div>
+                    <div class="col-md-2 d-flex align-items-end">
+                        <button type="button" class="btn btn-outline-danger w-100 remove-entry" onclick="removeJournalEntry(this.closest('.journal-entry-row'))">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </template>
 
     <!-- Bootstrap Bundle with Popper -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
