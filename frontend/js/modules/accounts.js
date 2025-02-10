@@ -112,25 +112,46 @@ export function updateAccountsList(accounts) {
 }
 
 function generateAccountsTable(accounts) {
-    const sortOption = document.getElementById('accountSortOption')?.value || 'type';
-    
     let html = `
-        <table class="accounts-table">
+        <table class="table table-hover mb-0">
             <thead>
                 <tr>
-                    <th>Code</th>
                     <th>Name</th>
+                    <th>Category</th>
                     <th>Type</th>
                     <th>Description</th>
-                    <th>Actions</th>
+                    <th class="text-end">Balance</th>
+                    <th class="text-end">Actions</th>
                 </tr>
             </thead>
             <tbody>`;
 
-    if (sortOption === 'type') {
-        html += generateAccountsByType(accounts);
+    if (accounts.length === 0) {
+        html += `
+            <tr>
+                <td colspan="6" class="text-center text-muted">
+                    No accounts found. Click "Add Account" to create one.
+                </td>
+            </tr>`;
     } else {
-        html += generateAccountsByCategory(accounts);
+        accounts.forEach(account => {
+            html += `
+                <tr>
+                    <td>${account.name}</td>
+                    <td>${account.category ? account.category.name : '-'}</td>
+                    <td>${account.type.charAt(0).toUpperCase() + account.type.slice(1)}</td>
+                    <td>${account.description || '-'}</td>
+                    <td class="text-end numeric">${formatCurrency(0)}</td>
+                    <td class="text-end">
+                        <button class="btn btn-sm btn-outline-primary me-2" data-action="edit" data-id="${account.id}">
+                            <i class="bi bi-pencil"></i> Edit
+                        </button>
+                        <button class="btn btn-sm btn-outline-danger" data-action="delete" data-id="${account.id}">
+                            <i class="bi bi-trash"></i> Delete
+                        </button>
+                    </td>
+                </tr>`;
+        });
     }
 
     html += '</tbody></table>';
