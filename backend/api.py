@@ -1,5 +1,5 @@
 """
-FastAPI Backend for Personal Finance Bookkeeper
+FastAPI Backend for Bookkeeper
 
 This module implements the REST API endpoints for the bookkeeping application.
 It provides endpoints for managing account categories, accounts, transactions,
@@ -28,7 +28,7 @@ from .database import get_db, engine, Base
 Base.metadata.create_all(bind=engine)
 
 # Create FastAPI application instance
-app = FastAPI(title="Personal Finance Bookkeeper")
+app = FastAPI(title="Bookkeeper")
 
 # Configure CORS middleware to allow frontend access
 app.add_middleware(
