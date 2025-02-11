@@ -380,56 +380,97 @@ class BookkeepingService:
         return f"{prefix}{next_number:03d}"
 
     def create_transaction(self, transaction_data: models.TransactionCreate) -> models.Transaction:
-        """
-        Create a new transaction with associated journal entries.
-        
-        Args:
-            transaction_data: Transaction data including journal entries
-            
-        Returns:
-            Transaction: The newly created transaction
-            
-        Raises:
-            ValueError: If accounts don't exist or debits don't equal credits
-        """
-        # Create transaction
-        transaction_dict = transaction_data.model_dump(exclude={'entries'})
-        
-        # Generate reference number if not provided
-        if not transaction_dict.get('reference_number'):
-            transaction_dict['reference_number'] = self._generate_transaction_reference()
-        
-        db_transaction = models.Transaction(**transaction_dict)
-        self.db.add(db_transaction)
-        self.db.commit()  # Commit to get the transaction ID
-        
-        # Create journal entries
-        total_debits = Decimal('0.00')
-        total_credits = Decimal('0.00')
-        
-        for entry in transaction_data.entries:
-            # Verify account exists
-            account = self.db.query(models.Account).get(entry.account_id)
-            if not account:
-                self.db.rollback()
-                raise ValueError(f"Account with id {entry.account_id} not found")
+        """Create a new transaction with its journal entries."""
+        try:
+            # Start a nested transaction for atomicity
+            with self.db.begin_nested():
+                # Basic validation
+                if not hasattr(transaction_data, 'entries') or not transaction_data.entries:
+                    raise ValueError("No journal entries provided")
+                
+                if not isinstance(transaction_data.entries, list):
+                    raise ValueError("Journal entries must be a list")
 
-            journal_entry = models.JournalEntry(
-                transaction_id=db_transaction.id,
-                **entry.model_dump()
-            )
-            total_debits += entry.debit_amount
-            total_credits += entry.credit_amount
-            self.db.add(journal_entry)
-        
-        # Verify double-entry principle
-        if total_debits != total_credits:
+                if not transaction_data.description:
+                    raise ValueError("Transaction description is required")
+
+                if not transaction_data.transaction_date:
+                    raise ValueError("Transaction date is required")
+
+                # Track valid entries and used accounts
+                valid_entries = []
+                used_accounts = set()
+                total_debits = Decimal('0')
+                total_credits = Decimal('0')
+
+                # Process and validate each entry
+                for entry in transaction_data.entries:
+                    # Skip empty entries
+                    if not entry.account_id or (not entry.debit_amount and not entry.credit_amount):
+                        continue
+
+                    # Validate account exists
+                    account = self.db.query(models.Account).get(entry.account_id)
+                    if not account:
+                        raise ValueError(f"Account {entry.account_id} not found")
+
+                    # Check for duplicate account usage
+                    if entry.account_id in used_accounts:
+                        raise ValueError(f"Account {account.name} is used multiple times")
+                    used_accounts.add(entry.account_id)
+
+                    # Convert amounts to Decimal for precise calculation
+                    debit = Decimal(str(entry.debit_amount)) if entry.debit_amount else Decimal('0')
+                    credit = Decimal(str(entry.credit_amount)) if entry.credit_amount else Decimal('0')
+
+                    # Validate amounts
+                    if debit < 0 or credit < 0:
+                        raise ValueError("Negative amounts are not allowed")
+                    if debit > 0 and credit > 0:
+                        raise ValueError(f"Account {account.name} cannot be both debited and credited")
+
+                    # Add to totals
+                    total_debits += debit
+                    total_credits += credit
+
+                    # Add to valid entries
+                    valid_entries.append({
+                        'account_id': entry.account_id,
+                        'debit_amount': debit,
+                        'credit_amount': credit
+                    })
+
+                # Final validations
+                if len(valid_entries) < 2:
+                    raise ValueError("At least two valid journal entries are required")
+
+                if abs(total_debits - total_credits) >= Decimal('0.01'):
+                    raise ValueError("Total debits must equal total credits")
+
+                # Create the transaction
+                transaction = models.Transaction(
+                    reference_number=self._generate_transaction_reference(),
+                    transaction_date=transaction_data.transaction_date,
+                    description=transaction_data.description
+                )
+                self.db.add(transaction)
+                self.db.flush()  # Get the transaction ID
+
+                # Create journal entries
+                for entry_data in valid_entries:
+                    entry = models.JournalEntry(
+                        transaction_id=transaction.id,
+                        **entry_data
+                    )
+                    self.db.add(entry)
+
+            # If we get here, commit the outer transaction
+            self.db.commit()
+            return transaction
+
+        except Exception as e:
             self.db.rollback()
-            raise ValueError("Total debits must equal total credits")
-            
-        self.db.commit()
-        self.db.refresh(db_transaction)
-        return db_transaction
+            raise ValueError(str(e))
 
     def update_transaction(self, transaction_id: str, transaction_data: models.TransactionCreate) -> Optional[models.Transaction]:
         """
@@ -486,23 +527,35 @@ class BookkeepingService:
         return db_transaction
 
     def delete_transaction(self, transaction_id: str) -> bool:
-        """
-        Delete a transaction and all its journal entries.
-        
-        Args:
-            transaction_id: ID of the transaction to delete
+        """Delete a transaction and its associated journal entries."""
+        try:
+            # Start a nested transaction
+            with self.db.begin_nested():
+                # Get and lock the transaction
+                transaction = self.db.query(models.Transaction)\
+                    .filter(models.Transaction.id == transaction_id)\
+                    .with_for_update()\
+                    .first()
+
+                if not transaction:
+                    return False
+
+                # Delete all associated journal entries first
+                self.db.query(models.JournalEntry)\
+                    .filter(models.JournalEntry.transaction_id == transaction_id)\
+                    .delete(synchronize_session=False)
+
+                # Delete the transaction
+                self.db.delete(transaction)
             
-        Returns:
-            bool: True if deleted successfully, False if not found
-        """
-        db_transaction = self.db.query(models.Transaction).filter(models.Transaction.id == transaction_id).first()
-        if not db_transaction:
-            return False
+            # If we get here, commit the outer transaction
+            self.db.commit()
+            return True
             
-        # Delete associated journal entries (should cascade automatically)
-        self.db.delete(db_transaction)
-        self.db.commit()
-        return True
+        except Exception as e:
+            # Rollback in case of any error
+            self.db.rollback()
+            raise ValueError(f"Error deleting transaction: {str(e)}")
 
     def get_transaction(self, transaction_id: str) -> Optional[models.Transaction]:
         """

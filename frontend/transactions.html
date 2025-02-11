@@ -91,7 +91,7 @@
                         <div class="mb-4">
                             <div class="d-flex justify-content-between align-items-center mb-3">
                                 <h4 class="mb-0">Journal Entries</h4>
-                                <button type="button" class="btn btn-outline-primary btn-sm" onclick="addJournalEntryRow()">
+                                <button type="button" class="btn btn-outline-primary btn-sm" data-action="add-journal-entry">
                                     <i class="bi bi-plus"></i> Add Entry
                                 </button>
                             </div>
@@ -216,7 +216,7 @@
                         <input type="number" step="0.01" class="form-control journal-entry-credit" placeholder="0,00">
                     </div>
                     <div class="col-md-2 d-flex align-items-end">
-                        <button type="button" class="btn btn-outline-danger w-100 remove-entry" onclick="removeJournalEntry(this.closest('.journal-entry-row'))">
+                        <button type="button" class="btn btn-outline-danger w-100 remove-entry" data-action="remove-entry">
                             <i class="bi bi-trash"></i>
                         </button>
                     </div>

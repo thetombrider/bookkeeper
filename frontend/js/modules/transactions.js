@@ -4,6 +4,7 @@ import { showConfirmDialog, showSuccessMessage, showErrorMessage } from './modal
 
 // State
 let allTransactions = [];
+let isInitialized = false;
 
 // Exports
 export {
@@ -13,7 +14,8 @@ export {
     viewTransaction,
     addJournalEntryRow,
     removeJournalEntry,
-    updateTotals
+    updateTotals,
+    updateTransactionsTable
 };
 
 // Add sorting state and cached transactions
@@ -33,12 +35,18 @@ async function loadTransactions() {
         if (!response.ok) {
             throw new Error('Failed to load transactions');
         }
-        allTransactions = await response.json();
+        const data = await response.json();
         
-        // Update transactions table
-        updateTransactionsTable();
+        // Update state
+        allTransactions = [...data];
         
-        // Populate account filter dropdown
+        // Update UI only if table exists
+        const table = document.getElementById('transactionsTable');
+        if (table) {
+            updateTransactionsTable();
+        }
+        
+        // Populate account filter dropdown only if it exists
         const filterAccountSelect = document.getElementById('filterAccount');
         if (filterAccountSelect) {
             filterAccountSelect.innerHTML = `
@@ -49,20 +57,23 @@ async function loadTransactions() {
             `;
         }
         
-        // Set up event listeners
-        setupEventListeners();
+        // Set up event listeners only once
+        if (!isInitialized) {
+            setupEventListeners();
+            isInitialized = true;
+        }
         
-        // Remove the automatic addition of journal entry row
+        // Check accounts availability
         if (!allAccounts || allAccounts.length === 0) {
             console.error('No accounts loaded');
             showErrorMessage('No accounts available. Please create some accounts first.');
         }
         
-        return allTransactions;
+        return data;
     } catch (error) {
         console.error('Error loading transactions:', error);
         showErrorMessage('Error loading transactions: ' + error.message);
-        throw error;
+        return [];
     }
 }
 
@@ -79,13 +90,16 @@ function updateTransactionsTable() {
         return;
     }
 
-    console.log('Updating table with transactions:', allTransactions);
-
     // Clear existing content
     tbody.innerHTML = '';
 
+    // Sort transactions by date (newest first)
+    const sortedTransactions = [...allTransactions].sort((a, b) => 
+        new Date(b.transaction_date) - new Date(a.transaction_date)
+    );
+
     // Add new content
-    const tableContent = allTransactions.map(transaction => {
+    const tableContent = sortedTransactions.map(transaction => {
         const debitEntries = transaction.journal_entries.filter(entry => entry.debit_amount > 0);
         const creditEntries = transaction.journal_entries.filter(entry => entry.credit_amount > 0);
         const amount = debitEntries.reduce((sum, entry) => sum + parseFloat(entry.debit_amount), 0);
@@ -110,7 +124,6 @@ function updateTransactionsTable() {
     }).join('');
 
     tbody.innerHTML = tableContent;
-    console.log('Table updated with', allTransactions.length, 'transactions');
 }
 
 function formatDate(dateString) {
@@ -150,6 +163,27 @@ function setupEventListeners() {
     const cancelBtn = form?.querySelector('[data-action="cancel-edit"]');
     if (cancelBtn) {
         cancelBtn.onclick = hideTransactionForm;
+    }
+
+    // Journal entries list - handle remove entry and account changes
+    const journalEntriesList = document.querySelector('.journal-entries-list');
+    if (journalEntriesList) {
+        journalEntriesList.addEventListener('click', (e) => {
+            const removeBtn = e.target.closest('[data-action="remove-entry"]');
+            if (removeBtn) {
+                const row = removeBtn.closest('.journal-entry-row');
+                if (row) {
+                    removeJournalEntry(row);
+                }
+            }
+        });
+
+        // Add change event listener for account selects
+        journalEntriesList.addEventListener('change', (e) => {
+            if (e.target.classList.contains('journal-entry-account')) {
+                validateAccountUsage(e.target);
+            }
+        });
     }
 
     // Table actions
@@ -198,17 +232,22 @@ function showTransactionForm() {
 }
 
 function hideTransactionForm() {
-    const form = document.getElementById('transactionForm');
-    if (form) {
-        form.style.display = 'none';
+    const formContainer = document.getElementById('transactionForm');
+    const form = document.getElementById('transactionEditForm');
+    const entriesList = document.querySelector('.journal-entries-list');
+    
+    if (formContainer) {
+        formContainer.style.display = 'none';
+    }
+    
+    if (form && entriesList) {
         form.reset();
-        
-        // Clear journal entries
-        const entriesList = document.querySelector('.journal-entries-list');
-        if (entriesList) {
-            entriesList.innerHTML = '';
-            addJournalEntryRow();
-        }
+        // Keep only one entry row
+        entriesList.innerHTML = '';
+        // Add a fresh journal entry row
+        addJournalEntryRow();
+        // Reset totals
+        updateTotals();
     }
 }
 
@@ -288,65 +327,165 @@ function updateTotals() {
 async function handleTransactionSubmit(e) {
     e.preventDefault();
     
-    // Get all journal entries
-    const entries = [];
-    document.querySelectorAll('.journal-entry-row').forEach(row => {
-        const accountId = row.querySelector('.journal-entry-account').value;
-        const debit = parseFloat(row.querySelector('.journal-entry-debit').value) || 0;
-        const credit = parseFloat(row.querySelector('.journal-entry-credit').value) || 0;
-        
-        if (accountId && (debit > 0 || credit > 0)) {
+    // Disable submit button to prevent double submission
+    const submitButton = e.target.querySelector('button[type="submit"]');
+    if (submitButton) {
+        if (submitButton.disabled) {
+            return; // Already submitting
+        }
+        submitButton.disabled = true;
+        submitButton.innerHTML = '<i class="bi bi-hourglass"></i> Saving...';
+    }
+    
+    try {
+        // Get all journal entries
+        const entriesList = document.querySelector('.journal-entries-list');
+        if (!entriesList) {
+            showErrorMessage('Error: Journal entries list not found');
+            return;
+        }
+
+        const entries = [];
+        const usedAccounts = new Set();
+        let hasValidationError = false;
+
+        // Validate description first
+        const description = document.getElementById('transactionDescription')?.value?.trim();
+        if (!description) {
+            showErrorMessage('Description is required');
+            return;
+        }
+
+        // Validate date
+        const transactionDate = document.getElementById('transactionDate')?.value;
+        if (!transactionDate) {
+            showErrorMessage('Date is required');
+            return;
+        }
+
+        const journalRows = entriesList.querySelectorAll('.journal-entry-row');
+        if (!journalRows || journalRows.length === 0) {
+            showErrorMessage('No journal entries found');
+            return;
+        }
+
+        journalRows.forEach(row => {
+            const accountSelect = row.querySelector('.journal-entry-account');
+            const debitInput = row.querySelector('.journal-entry-debit');
+            const creditInput = row.querySelector('.journal-entry-credit');
+
+            if (!accountSelect || !debitInput || !creditInput) {
+                hasValidationError = true;
+                showErrorMessage('Invalid journal entry row structure');
+                return;
+            }
+
+            const accountId = accountSelect.value;
+            const debit = parseFloat(debitInput.value) || 0;
+            const credit = parseFloat(creditInput.value) || 0;
+            
+            // Skip empty rows
+            if (!accountId || (debit === 0 && credit === 0)) {
+                return;
+            }
+
+            // Check if account is already used
+            if (usedAccounts.has(accountId)) {
+                hasValidationError = true;
+                showErrorMessage('Each account can only be used once per transaction.');
+                return;
+            }
+
+            // Check if trying to debit and credit same account
+            if (debit > 0 && credit > 0) {
+                hasValidationError = true;
+                showErrorMessage('An account cannot be both debited and credited in the same entry.');
+                return;
+            }
+
+            usedAccounts.add(accountId);
             entries.push({
                 account_id: accountId,
                 debit_amount: debit,
                 credit_amount: credit
             });
+        });
+
+        // Stop if validation failed
+        if (hasValidationError) {
+            return;
         }
-    });
 
-    // Validate entries
-    if (entries.length < 2) {
-        showErrorMessage('At least two journal entries are required');
-        return;
-    }
+        // Validate minimum entries
+        if (entries.length < 2) {
+            showErrorMessage('At least two journal entries are required');
+            return;
+        }
 
-    // Calculate totals
-    const totalDebits = entries.reduce((sum, entry) => sum + entry.debit_amount, 0);
-    const totalCredits = entries.reduce((sum, entry) => sum + entry.credit_amount, 0);
+        // Calculate totals
+        const totalDebits = entries.reduce((sum, entry) => sum + entry.debit_amount, 0);
+        const totalCredits = entries.reduce((sum, entry) => sum + entry.credit_amount, 0);
 
-    // Validate debits = credits
-    if (Math.abs(totalDebits - totalCredits) >= 0.01) {
-        showErrorMessage('Total debits must equal total credits');
-        return;
-    }
+        // Validate debits = credits with small tolerance for floating point arithmetic
+        if (Math.abs(totalDebits - totalCredits) >= 0.01) {
+            showErrorMessage('Total debits must equal total credits');
+            return;
+        }
 
-    const formData = {
-        transaction_date: document.getElementById('transactionDate').value,
-        description: document.getElementById('transactionDescription').value,
-        entries: entries
-    };
+        const formData = {
+            transaction_date: transactionDate,
+            description: description,
+            entries: entries
+        };
 
-    try {
-        await createTransaction(formData);
-        showSuccessMessage('Transaction created successfully!');
-        hideTransactionForm();
-        await loadTransactions();
+        const result = await createTransaction(formData);
+        if (result) {
+            showSuccessMessage('Transaction created successfully!');
+            hideTransactionForm();
+            // Update local state and table
+            allTransactions = [result, ...allTransactions];
+            updateTransactionsTable();
+        }
     } catch (error) {
+        console.error('Error creating transaction:', error);
         showErrorMessage('Error creating transaction: ' + error.message);
+        // Refresh to get current state in case of error
+        await loadTransactions();
+    } finally {
+        // Re-enable submit button
+        if (submitButton) {
+            submitButton.disabled = false;
+            submitButton.innerHTML = 'Save Transaction';
+        }
     }
 }
 
 async function handleDeleteTransaction(id) {
     const transaction = allTransactions.find(t => t.id === id);
-    if (!transaction) return;
+    if (!transaction) {
+        showErrorMessage('Transaction not found');
+        return;
+    }
 
     if (await showConfirmDialog(`Are you sure you want to delete this transaction?`)) {
         try {
-            await deleteTransaction(id);
-            showSuccessMessage('Transaction deleted successfully!');
-            await loadTransactions();
+            const deleted = await deleteTransaction(id);
+            if (deleted) {
+                showSuccessMessage('Transaction deleted successfully');
+                // Remove from local array immediately
+                allTransactions = allTransactions.filter(t => t.id !== id);
+                updateTransactionsTable();
+            } else {
+                // Transaction was already deleted
+                showErrorMessage('Transaction was already deleted');
+                // Refresh to get current state
+                await loadTransactions();
+            }
         } catch (error) {
+            console.error('Error in handleDeleteTransaction:', error);
             showErrorMessage('Error deleting transaction: ' + error.message);
+            // Refresh to get current state in case of error
+            await loadTransactions();
         }
     }
 }
@@ -422,15 +561,28 @@ async function createTransaction(transactionData) {
 }
 
 async function deleteTransaction(id) {
-    const response = await fetch(`${API_URL}/transactions/${id}`, {
-        method: 'DELETE'
-    });
+    try {
+        const response = await fetch(`${API_URL}/transactions/${id}`, {
+            method: 'DELETE',
+            headers: {
+                'Accept': 'application/json'
+            }
+        });
 
-    if (!response.ok) {
-        throw new Error('Error deleting transaction');
+        if (!response.ok) {
+            // For 404, just return false as the transaction is already gone
+            if (response.status === 404) {
+                return false;
+            }
+            const errorData = await response.json();
+            throw new Error(errorData.detail || 'Failed to delete transaction');
+        }
+
+        return true;
+    } catch (error) {
+        console.error('Error in deleteTransaction:', error);
+        throw error;  // Re-throw to be handled by caller
     }
-
-    return true;
 }
 
 async function viewTransaction(id) {
@@ -510,5 +662,59 @@ async function viewTransaction(id) {
     }
 }
 
-// Initialize the module
-document.addEventListener('DOMContentLoaded', loadTransactions);
+// Add this new function to validate account usage
+function validateAccountUsage(changedSelect) {
+    const selectedAccountId = changedSelect.value;
+    if (!selectedAccountId) return;
+
+    const allAccountSelects = document.querySelectorAll('.journal-entry-account');
+    const currentRow = changedSelect.closest('.journal-entry-row');
+    const currentDebit = currentRow.querySelector('.journal-entry-debit');
+    const currentCredit = currentRow.querySelector('.journal-entry-credit');
+
+    let accountUsages = [];
+
+    // Collect all usages of the selected account
+    allAccountSelects.forEach(select => {
+        if (select.value === selectedAccountId && select !== changedSelect) {
+            const row = select.closest('.journal-entry-row');
+            const debit = row.querySelector('.journal-entry-debit').value;
+            const credit = row.querySelector('.journal-entry-credit').value;
+            
+            if (debit) accountUsages.push('debit');
+            if (credit) accountUsages.push('credit');
+        }
+    });
+
+    // If account is already used
+    if (accountUsages.length > 0) {
+        showErrorMessage('This account is already used in another entry. An account can only be used once per transaction.');
+        changedSelect.value = ''; // Reset the selection
+        return;
+    }
+
+    // Add input event listeners to prevent debit/credit on same account
+    currentDebit.addEventListener('input', () => {
+        if (currentDebit.value && currentCredit.value) {
+            showErrorMessage('An account cannot be both debited and credited in the same entry.');
+            currentDebit.value = '';
+        }
+    });
+
+    currentCredit.addEventListener('input', () => {
+        if (currentDebit.value && currentCredit.value) {
+            showErrorMessage('An account cannot be both debited and credited in the same entry.');
+            currentCredit.value = '';
+        }
+    });
+}
+
+// Instead, export an initialization function
+export async function initializeTransactions() {
+    if (!isInitialized) {
+        await loadTransactions();
+    }
+}
+
+// Initialize when the module is loaded
+document.addEventListener('DOMContentLoaded', initializeTransactions);
