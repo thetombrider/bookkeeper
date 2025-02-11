@@ -52,12 +52,14 @@ export function updateAccountsList(accounts) {
     
     // Add sorting options bar
     let html = `
-        <div class="sorting-options">
-            <label>Group by:</label>
-            <select id="accountSortOption">
-                <option value="type">Account Type</option>
-                <option value="category">Category</option>
-            </select>
+        <div class="d-flex justify-content-between align-items-center p-3 bg-light border-bottom">
+            <div class="d-flex align-items-center gap-2">
+                <label class="form-label mb-0">Group by:</label>
+                <select id="accountSortOption" class="form-select form-select-sm" style="width: auto;">
+                    <option value="type">Account Type</option>
+                    <option value="category">Category</option>
+                </select>
+            </div>
         </div>
         <div class="table-container">
             ${generateAccountsTable(accounts)}
@@ -87,14 +89,15 @@ export function updateAccountsList(accounts) {
         if (categoryRow) {
             const categoryId = categoryRow.dataset.category;
             const accountRows = document.querySelectorAll(`tr[data-category="${categoryId}"]`);
-            const icon = categoryRow.querySelector('.toggle-icon');
+            const icon = categoryRow.querySelector('.bi');
             
             accountRows.forEach(row => {
                 if (row !== categoryRow) {
                     row.style.display = row.style.display === 'none' ? '' : 'none';
                 }
             });
-            icon.textContent = icon.textContent === '▼' ? '▶' : '▼';
+            icon.classList.toggle('bi-chevron-down');
+            icon.classList.toggle('bi-chevron-right');
         }
     });
 
@@ -112,6 +115,8 @@ export function updateAccountsList(accounts) {
 }
 
 function generateAccountsTable(accounts) {
+    const sortOption = document.getElementById('accountSortOption')?.value || 'type';
+    
     let html = `
         <table class="table table-hover mb-0">
             <thead>
@@ -134,24 +139,7 @@ function generateAccountsTable(accounts) {
                 </td>
             </tr>`;
     } else {
-        accounts.forEach(account => {
-            html += `
-                <tr>
-                    <td>${account.name}</td>
-                    <td>${account.category ? account.category.name : '-'}</td>
-                    <td>${account.type.charAt(0).toUpperCase() + account.type.slice(1)}</td>
-                    <td>${account.description || '-'}</td>
-                    <td class="text-end numeric">${formatCurrency(0)}</td>
-                    <td class="text-end">
-                        <button class="btn btn-sm btn-outline-primary me-2" data-action="edit" data-id="${account.id}">
-                            <i class="bi bi-pencil"></i> Edit
-                        </button>
-                        <button class="btn btn-sm btn-outline-danger" data-action="delete" data-id="${account.id}">
-                            <i class="bi bi-trash"></i> Delete
-                        </button>
-                    </td>
-                </tr>`;
-        });
+        html += sortOption === 'type' ? generateAccountsByType(accounts) : generateAccountsByCategory(accounts);
     }
 
     html += '</tbody></table>';
@@ -223,31 +211,32 @@ function generateAccountGroup(groupId, groupName, accounts) {
     }
 
     return `
-        <tr class="category-row" data-action="toggle-category" data-category="${groupId}">
-            <td colspan="5">
-                <div class="category-header">
-                    <span class="toggle-icon">▼</span>
-                    ${groupName}
-                    <span class="account-count">(${filteredAccounts.length} accounts)</span>
+        <tr class="table-light" data-action="toggle-category" data-category="${groupId}" style="cursor: pointer;">
+            <td colspan="6">
+                <div class="d-flex align-items-center gap-2">
+                    <i class="bi bi-chevron-down"></i>
+                    <strong>${groupName}</strong>
+                    <span class="text-muted ms-2">(${filteredAccounts.length} accounts)</span>
                 </div>
             </td>
         </tr>
-        ${filteredAccounts.sort((a, b) => a.code.localeCompare(b.code))
-            .map(account => `
-                <tr class="account-row" data-category="${groupId}">
-                    <td>${account.code}</td>
-                    <td>${account.name}</td>
-                    <td>${account.type}</td>
-                    <td>${account.description || ''}</td>
-                    <td class="account-actions">
-                        <button class="edit-btn" data-action="edit" data-id="${account.id}">Edit</button>
-                        <button class="delete-btn" data-action="delete" data-id="${account.id}">Delete</button>
-                        ${canHaveStartingBalance(account) ? 
-                            `<button class="balance-btn" data-action="balance" data-id="${account.id}">Create Starting Balance</button>` 
-                            : ''}
-                    </td>
-                </tr>
-            `).join('')}
+        ${filteredAccounts.map(account => `
+            <tr data-category="${groupId}">
+                <td>${account.name}</td>
+                <td>${account.category ? account.category.name : '-'}</td>
+                <td>${account.type.charAt(0).toUpperCase() + account.type.slice(1)}</td>
+                <td>${account.description || '-'}</td>
+                <td class="text-end numeric">${formatCurrency(0)}</td>
+                <td class="text-end">
+                    <button class="btn btn-sm btn-outline-primary me-2" data-action="edit" data-id="${account.id}">
+                        <i class="bi bi-pencil"></i> Edit
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger" data-action="delete" data-id="${account.id}">
+                        <i class="bi bi-trash"></i> Delete
+                    </button>
+                </td>
+            </tr>
+        `).join('')}
     `;
 }
 
@@ -373,21 +362,24 @@ async function handleEditAccount(id) {
     const account = allAccounts.find(a => a.id === id);
     if (!account) return;
 
-    const form = document.getElementById('accountForm');
+    const form = document.getElementById('accountEditForm');
+    const formContainer = document.getElementById('accountForm');
     const nameInput = document.getElementById('accountName');
     const typeSelect = document.getElementById('accountType');
     const categorySelect = document.getElementById('accountCategory');
     const descInput = document.getElementById('accountDescription');
-    const submitButton = form.querySelector('button[type="submit"]');
+    const submitButton = form?.querySelector('button[type="submit"]');
+    const existingCancelButton = form?.querySelector('[data-action="cancel-edit"]');
 
-    if (form && nameInput && typeSelect && categorySelect && descInput && submitButton) {
-        // Add visual feedback class to the form container
-        const formContainer = form.closest('.form-container');
-        formContainer.classList.add('editing');
+    if (form && formContainer && nameInput && typeSelect && categorySelect && descInput && submitButton) {
+        // Show the form container
+        formContainer.style.display = 'block';
         
         // Add editing indicator to form title
-        const formTitle = formContainer.querySelector('h3');
-        formTitle.textContent = `Edit Account: ${account.name}`;
+        const formTitle = formContainer.querySelector('.card-title');
+        if (formTitle) {
+            formTitle.textContent = `Edit Account: ${account.name}`;
+        }
         
         // Scroll to form with smooth animation
         formContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -411,25 +403,21 @@ async function handleEditAccount(id) {
         form.dataset.editId = id;
         submitButton.textContent = 'Update Account';
 
-        // Add a cancel button if it doesn't exist
-        if (!form.querySelector('.cancel-edit-btn')) {
-            const cancelButton = document.createElement('button');
-            cancelButton.type = 'button';
-            cancelButton.className = 'cancel-edit-btn';
-            cancelButton.textContent = 'Cancel Edit';
-            cancelButton.onclick = () => {
-                // Reset form and remove editing state
+        // Update the existing cancel button's behavior
+        if (existingCancelButton) {
+            existingCancelButton.onclick = () => {
                 form.reset();
                 form.dataset.editId = '';
-                formContainer.classList.remove('editing');
-                formTitle.textContent = 'Create Account';
+                formContainer.style.display = 'none';
+                formTitle.textContent = 'Add Account';
                 submitButton.textContent = 'Create Account';
                 typeSelect.disabled = false;
                 categorySelect.disabled = true;
-                cancelButton.remove();
             };
-            submitButton.parentNode.insertBefore(cancelButton, submitButton.nextSibling);
         }
+    } else {
+        console.error('Required form elements not found');
+        showErrorMessage('Error: Could not load edit form. Please try again.');
     }
 }
 
