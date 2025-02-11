@@ -78,16 +78,52 @@ async function applyFilters() {
         const data = await response.json();
         console.log('Received filtered transactions:', data);
 
-        // Update transactions list with filtered data
+        // Update both local and module state
         allTransactions = [...data];
         
-        // If no transactions found after filtering, show a message but don't clear the table
+        // If no transactions found after filtering, show a message
         if (allTransactions.length === 0) {
             showErrorMessage('No transactions found for the selected filters');
+            // Still update the table to show it's empty
+            const tbody = document.querySelector('#transactionsTable tbody');
+            if (tbody) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="6" class="text-center text-muted py-4">
+                            No transactions found matching the selected filters
+                        </td>
+                    </tr>
+                `;
+            }
+        } else {
+            // Update the table with filtered results
+            const tbody = document.querySelector('#transactionsTable tbody');
+            if (tbody) {
+                tbody.innerHTML = allTransactions.map(transaction => {
+                    const debitEntries = transaction.journal_entries.filter(entry => entry.debit_amount > 0);
+                    const creditEntries = transaction.journal_entries.filter(entry => entry.credit_amount > 0);
+                    const amount = debitEntries.reduce((sum, entry) => sum + parseFloat(entry.debit_amount), 0);
+
+                    return `
+                        <tr>
+                            <td>${new Date(transaction.transaction_date).toLocaleDateString('it-IT')}</td>
+                            <td>${transaction.description}</td>
+                            <td>${debitEntries.length ? debitEntries[0].account.name + (debitEntries.length > 1 ? ` (+${debitEntries.length - 1} more)` : '') : '-'}</td>
+                            <td>${creditEntries.length ? creditEntries[0].account.name + (creditEntries.length > 1 ? ` (+${creditEntries.length - 1} more)` : '') : '-'}</td>
+                            <td class="text-end numeric">${new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(amount)}</td>
+                            <td class="text-end">
+                                <button class="btn btn-sm btn-outline-primary me-2" data-action="view" data-id="${transaction.id}">
+                                    <i class="bi bi-eye"></i> View
+                                </button>
+                                <button class="btn btn-sm btn-outline-danger" data-action="delete" data-id="${transaction.id}">
+                                    <i class="bi bi-trash"></i> Delete
+                                </button>
+                            </td>
+                        </tr>
+                    `;
+                }).join('');
+            }
         }
-        
-        // Update the table with filtered results
-        updateTransactionsTable();
         
         // Show success message
         showSuccessMessage('Filters applied successfully');
