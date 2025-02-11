@@ -1,95 +1,254 @@
 import { API_URL } from './config.js';
-import { showConfirmDialog, showSuccessMessage, showErrorMessage } from './modal.js';
+import { createModal, showModal } from './modal.js';
 
 export let allCategories = [];
+
+// Wait for app to be ready before initializing
+window.addEventListener('app-ready', () => {
+    // Initial load of categories
+    loadCategories().catch(console.error);
+});
 
 export function handleEditCategory(id, name, description) {
     // Fill the form with category data
     const form = document.getElementById('categoryForm');
     const nameInput = document.getElementById('categoryName');
     const descInput = document.getElementById('categoryDescription');
+    const formContainer = form?.closest('.card');
+    const formTitle = formContainer?.querySelector('.card-title');
+    const submitButton = form?.querySelector('button[type="submit"]');
     
-    if (form && nameInput && descInput) {
+    if (!form || !nameInput || !descInput || !formContainer || !formTitle || !submitButton) {
+        console.error('Required form elements not found');
+        return;
+    }
+
+    // Queue visual updates for next frame
+    requestAnimationFrame(() => {
         // Add visual feedback class to the form container
-        const formContainer = form.closest('.form-container');
         formContainer.classList.add('editing');
         
-        // Add editing indicator to form title
-        const formTitle = formContainer.querySelector('h3');
+        // Update form elements
         formTitle.textContent = `Edit Category: ${name}`;
-        
-        // Scroll to form with smooth animation
-        formContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
-
-        // Fill form with category data
         nameInput.value = name;
         descInput.value = description || '';
-        
-        // Update form for edit mode
         form.dataset.editId = id;
-        const submitButton = form.querySelector('button[type="submit"]');
         submitButton.textContent = 'Update Category';
 
-        // Add a cancel button if it doesn't exist
+        // Add cancel button if needed
         if (!form.querySelector('.cancel-edit-btn')) {
             const cancelButton = document.createElement('button');
             cancelButton.type = 'button';
-            cancelButton.className = 'cancel-edit-btn';
-            cancelButton.textContent = 'Cancel Edit';
+            cancelButton.className = 'btn btn-light ms-2 cancel-edit-btn';
+            cancelButton.textContent = 'Cancel';
             cancelButton.onclick = () => {
-                // Reset form and remove editing state
-                form.reset();
-                form.dataset.editId = '';
-                formContainer.classList.remove('editing');
-                formTitle.textContent = 'Create Category';
-                submitButton.textContent = 'Create Category';
-                cancelButton.remove();
+                // Create and show Bootstrap modal
+                const modalHtml = `
+                    <div class="modal fade" id="cancelEditModal" tabindex="-1">
+                        <div class="modal-dialog">
+                            <div class="modal-content">
+                                <div class="modal-header">
+                                    <h5 class="modal-title">Cancel Edit</h5>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                </div>
+                                <div class="modal-body">
+                                    <p>Are you sure you want to cancel editing?</p>
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">No</button>
+                                    <button type="button" class="btn btn-primary" id="confirmCancel">Yes</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                
+                const modalElement = new DOMParser().parseFromString(modalHtml, 'text/html').body.firstChild;
+                document.body.appendChild(modalElement);
+                
+                const modal = new bootstrap.Modal(modalElement);
+                
+                // Handle confirmation
+                modalElement.querySelector('#confirmCancel').onclick = () => {
+                    requestAnimationFrame(() => {
+                        form.reset();
+                        form.dataset.editId = '';
+                        formContainer.classList.remove('editing');
+                        formTitle.textContent = 'Create Category';
+                        submitButton.textContent = 'Create Category';
+                        cancelButton.remove();
+                    });
+                    modal.hide();
+                    modalElement.addEventListener('hidden.bs.modal', () => modalElement.remove());
+                };
+                
+                modalElement.addEventListener('hidden.bs.modal', () => modalElement.remove());
+                modal.show();
             };
             submitButton.parentNode.insertBefore(cancelButton, submitButton.nextSibling);
         }
-    }
+
+        // Scroll to form after all updates are complete
+        setTimeout(() => {
+            const headerOffset = 60;
+            const elementPosition = formContainer.getBoundingClientRect().top;
+            const offsetPosition = elementPosition + window.pageYOffset - headerOffset;
+
+            window.scrollTo({
+                top: offsetPosition,
+                behavior: 'smooth'
+            });
+        }, 100);
+    });
 }
 
 export async function handleDeleteCategory(id) {
-    const category = allCategories.find(c => c.id === id);
-    if (!category) return;
-
-    if (await showConfirmDialog(`Are you sure you want to delete the category "${category.name}"?`)) {
-        try {
-            await deleteCategory(id);
-            showSuccessMessage('Category deleted successfully!');
-            
-            // Manually update the UI without triggering event listeners
-            const row = document.querySelector(`button[data-id="${id}"]`).closest('tr');
-            if (row) {
-                row.remove();
-            }
-            
-            // Reload categories without triggering delete
-            const response = await fetch(`${API_URL}/account-categories/`);
-            if (response.ok) {
-                allCategories = await response.json();
-                updateCategoryDropdown();
-            }
-        } catch (error) {
-            console.error('Error deleting category:', error);
-            if (error.message.includes('not found')) {
-                showErrorMessage('Category has already been deleted.');
-                // Manually update the UI without triggering event listeners
-                const row = document.querySelector(`button[data-id="${id}"]`)?.closest('tr');
-                if (row) {
-                    row.remove();
-                }
-                // Update allCategories without triggering delete
-                const response = await fetch(`${API_URL}/account-categories/`);
-                if (response.ok) {
-                    allCategories = await response.json();
-                    updateCategoryDropdown();
-                }
-            } else {
-                showErrorMessage('Error deleting category: ' + error.message);
-            }
+    try {
+        console.log('Handling delete for category:', id);
+        const category = allCategories.find(c => c.id === id);
+        if (!category) {
+            throw new Error('Category not found');
         }
+
+        // Create Bootstrap modal for confirmation
+        const modalHtml = `
+            <div class="modal fade" id="deleteCategoryModal" tabindex="-1">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Delete Category</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <p>Are you sure you want to delete the category "${category.name}"?</p>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                            <button type="button" class="btn btn-danger" id="confirmDelete">Delete</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        const modalElement = new DOMParser().parseFromString(modalHtml, 'text/html').body.firstChild;
+        document.body.appendChild(modalElement);
+        
+        const modal = new bootstrap.Modal(modalElement);
+
+        return new Promise((resolve) => {
+            modalElement.querySelector('#confirmDelete').onclick = async () => {
+                modal.hide();
+                
+                try {
+                    console.log('Sending delete request for category:', id);
+                    const response = await fetch(`${API_URL}/account-categories/${id}`, {
+                        method: 'DELETE',
+                        headers: {
+                            'Accept': 'application/json'
+                        }
+                    });
+
+                    if (!response.ok) {
+                        throw new Error('Failed to delete category');
+                    }
+
+                    // Show success toast using Bootstrap toast
+                    const toastHtml = `
+                        <div class="toast align-items-center text-white bg-success border-0" role="alert">
+                            <div class="d-flex">
+                                <div class="toast-body">
+                                    Category deleted successfully!
+                                </div>
+                                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+                            </div>
+                        </div>
+                    `;
+                    
+                    const toastElement = new DOMParser().parseFromString(toastHtml, 'text/html').body.firstChild;
+                    const toastContainer = document.createElement('div');
+                    toastContainer.className = 'toast-container position-fixed top-0 end-0 p-3';
+                    toastContainer.appendChild(toastElement);
+                    document.body.appendChild(toastContainer);
+                    
+                    const toast = new bootstrap.Toast(toastElement, { delay: 2000 });
+                    toast.show();
+                    
+                    toastElement.addEventListener('hidden.bs.toast', () => toastContainer.remove());
+
+                    // Reload categories
+                    await loadCategories();
+                    resolve(true);
+                } catch (error) {
+                    console.error('Error deleting category:', error);
+                    
+                    // Show error modal using Bootstrap modal
+                    const errorModalHtml = `
+                        <div class="modal fade" id="errorModal" tabindex="-1">
+                            <div class="modal-dialog">
+                                <div class="modal-content">
+                                    <div class="modal-header">
+                                        <h5 class="modal-title">Error</h5>
+                                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                    </div>
+                                    <div class="modal-body">
+                                        <p>${error.message}</p>
+                                    </div>
+                                    <div class="modal-footer">
+                                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    
+                    const errorModalElement = new DOMParser().parseFromString(errorModalHtml, 'text/html').body.firstChild;
+                    document.body.appendChild(errorModalElement);
+                    
+                    const errorModal = new bootstrap.Modal(errorModalElement);
+                    errorModalElement.addEventListener('hidden.bs.modal', () => errorModalElement.remove());
+                    errorModal.show();
+                    
+                    resolve(false);
+                }
+            };
+
+            modalElement.addEventListener('hidden.bs.modal', () => {
+                modalElement.remove();
+                resolve(false);
+            });
+
+            modal.show();
+        });
+    } catch (error) {
+        console.error('Error in delete process:', error);
+        
+        // Show error modal using Bootstrap modal
+        const errorModalHtml = `
+            <div class="modal fade" id="errorModal" tabindex="-1">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Error</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <p>${error.message}</p>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        const errorModalElement = new DOMParser().parseFromString(errorModalHtml, 'text/html').body.firstChild;
+        document.body.appendChild(errorModalElement);
+        
+        const errorModal = new bootstrap.Modal(errorModalElement);
+        errorModalElement.addEventListener('hidden.bs.modal', () => errorModalElement.remove());
+        errorModal.show();
     }
 }
 
@@ -104,17 +263,20 @@ export async function loadCategories() {
         // Update categories list if the element exists
         const categoriesList = document.getElementById('categoriesList');
         if (categoriesList) {
-            // Remove existing event listeners before updating innerHTML
-            const oldElement = categoriesList.cloneNode(true);
-            categoriesList.parentNode.replaceChild(oldElement, categoriesList);
+            // First, remove any existing event listeners
+            categoriesList.replaceWith(categoriesList.cloneNode(true));
             
-            oldElement.innerHTML = `
-                <table>
+            // Get the fresh reference after replacing
+            const freshList = document.getElementById('categoriesList');
+            
+            // Update the HTML content
+            freshList.innerHTML = `
+                <table class="table table-hover mb-0">
                     <thead>
                         <tr>
-                            <th>Name</th>
-                            <th>Description</th>
-                            <th>Actions</th>
+                            <th style="width: 25%">Name</th>
+                            <th style="width: 50%">Description</th>
+                            <th class="text-end" style="width: 25%">Actions</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -122,14 +284,14 @@ export async function loadCategories() {
                             <tr>
                                 <td>${category.name}</td>
                                 <td>${category.description || ''}</td>
-                                <td>
-                                    <button class="edit-btn" data-action="edit" data-id="${category.id}" 
+                                <td class="text-end">
+                                    <button class="btn btn-sm btn-outline-primary me-2" data-action="edit" data-id="${category.id}" 
                                             data-name="${category.name}" 
                                             data-description="${category.description || ''}">
-                                        Edit
+                                        <i class="bi bi-pencil"></i> Edit
                                     </button>
-                                    <button class="delete-btn" data-action="delete" data-id="${category.id}">
-                                        Delete
+                                    <button class="btn btn-sm btn-outline-danger" data-action="delete" data-id="${category.id}">
+                                        <i class="bi bi-trash"></i> Delete
                                     </button>
                                 </td>
                             </tr>
@@ -138,8 +300,8 @@ export async function loadCategories() {
                 </table>
             `;
 
-            // Add event listeners using event delegation
-            oldElement.addEventListener('click', async (e) => {
+            // Add new event listener
+            freshList.addEventListener('click', async (e) => {
                 const button = e.target.closest('button[data-action]');
                 if (!button) return;
 
@@ -151,6 +313,7 @@ export async function loadCategories() {
                     const description = button.dataset.description;
                     handleEditCategory(id, name, description);
                 } else if (action === 'delete') {
+                    console.log('Delete button clicked for category:', id);
                     await handleDeleteCategory(id);
                 }
             });
@@ -191,111 +354,167 @@ export function updateCategoryDropdown() {
     }
 }
 
-export async function createCategory(event) {
-    event.preventDefault();
-    
-    const form = event.target;
-    const nameInput = document.getElementById('categoryName');
-    const descInput = document.getElementById('categoryDescription');
-    const editId = form.dataset.editId;
-    
-    const categoryData = {
-        name: nameInput.value,
-        description: descInput.value
-    };
-    
+export async function createCategory(formData) {
     try {
-        if (editId) {
-            await updateCategory(editId, categoryData);
-            
-            // Reset form styling and state
-            const formContainer = form.closest('.form-container');
-            const formTitle = formContainer.querySelector('h3');
-            const submitButton = form.querySelector('button[type="submit"]');
-            const cancelButton = form.querySelector('.cancel-edit-btn');
-            
-            // Update visual state
-            formContainer.classList.remove('editing');
-            formTitle.textContent = 'Create Category';
-            submitButton.textContent = 'Create Category';
-            
-            // Remove cancel button
-            if (cancelButton) {
-                cancelButton.remove();
-            }
-            
-            // Reset form state
-            form.dataset.editId = '';
-            form.reset();
-            
-            showSuccessMessage('Category updated successfully!');
-        } else {
-            const response = await fetch(`${API_URL}/account-categories/`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(categoryData)
-            });
-            
-            if (!response.ok) {
-                const data = await response.json();
-                throw new Error(data.detail || 'Error creating category');
-            }
-            showSuccessMessage('Category created successfully!');
+        const response = await fetch(`${API_URL}/account-categories/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify(formData)
+        });
+
+        if (!response.ok) {
+            const data = await response.json();
+            throw new Error(data.detail || 'Failed to create category');
         }
+
+        // Show success toast
+        const toastHtml = `
+            <div class="toast align-items-center text-white bg-success border-0" role="alert">
+                <div class="d-flex">
+                    <div class="toast-body">
+                        Category created successfully!
+                    </div>
+                    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+                </div>
+            </div>
+        `;
         
-        // Clear form and reload categories
-        form.reset();
+        const toastElement = new DOMParser().parseFromString(toastHtml, 'text/html').body.firstChild;
+        const toastContainer = document.createElement('div');
+        toastContainer.className = 'toast-container position-fixed top-0 end-0 p-3';
+        toastContainer.appendChild(toastElement);
+        document.body.appendChild(toastContainer);
+        
+        const toast = new bootstrap.Toast(toastElement, { delay: 2000 });
+        toast.show();
+        
+        toastElement.addEventListener('hidden.bs.toast', () => toastContainer.remove());
+
         await loadCategories();
-        return true;
     } catch (error) {
-        console.error('Error creating/updating category:', error);
+        console.error('Error creating category:', error);
+        
+        // Show error modal
+        const errorModalHtml = `
+            <div class="modal fade" id="errorModal" tabindex="-1">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Error</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <p>${error.message}</p>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        const errorModalElement = new DOMParser().parseFromString(errorModalHtml, 'text/html').body.firstChild;
+        document.body.appendChild(errorModalElement);
+        
+        const errorModal = new bootstrap.Modal(errorModalElement);
+        errorModalElement.addEventListener('hidden.bs.modal', () => errorModalElement.remove());
+        errorModal.show();
+        
         throw error;
     }
 }
 
-async function updateCategory(id, categoryData) {
-    const response = await fetch(`${API_URL}/account-categories/${id}`, {
-        method: 'PUT',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(categoryData)
-    });
-    
-    if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.detail || 'Error updating category');
-    }
-    
-    return response.json();
-}
+export async function updateCategory(id, formData) {
+    try {
+        const response = await fetch(`${API_URL}/account-categories/${id}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify(formData)
+        });
 
-export async function deleteCategory(id) {
-    const response = await fetch(`${API_URL}/account-categories/${id}`, {
-        method: 'DELETE',
-        headers: {
-            'Accept': 'application/json'
+        if (!response.ok) {
+            const data = await response.json();
+            throw new Error(data.detail || 'Failed to update category');
         }
-    });
-    
-    if (!response.ok) {
-        const data = await response.json();
-        let errorMessage;
+
+        // Show success toast
+        const toastHtml = `
+            <div class="toast align-items-center text-white bg-success border-0" role="alert">
+                <div class="d-flex">
+                    <div class="toast-body">
+                        Category updated successfully!
+                    </div>
+                    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+                </div>
+            </div>
+        `;
         
-        if (response.status === 404 || (data.detail && data.detail.message && data.detail.message.includes('not found'))) {
-            errorMessage = 'Category not found or already deleted';
-        } else if (data.detail && typeof data.detail === 'object' && data.detail.message) {
-            errorMessage = data.detail.message;
-        } else if (data.detail) {
-            errorMessage = data.detail;
-        } else {
-            errorMessage = 'Server error occurred while deleting category';
-        }
+        const toastElement = new DOMParser().parseFromString(toastHtml, 'text/html').body.firstChild;
+        const toastContainer = document.createElement('div');
+        toastContainer.className = 'toast-container position-fixed top-0 end-0 p-3';
+        toastContainer.appendChild(toastElement);
+        document.body.appendChild(toastContainer);
         
-        throw new Error(errorMessage);
+        const toast = new bootstrap.Toast(toastElement, { delay: 2000 });
+        toast.show();
+        
+        toastElement.addEventListener('hidden.bs.toast', () => toastContainer.remove());
+
+        // Reset form state
+        requestAnimationFrame(() => {
+            const form = document.getElementById('categoryForm');
+            const formContainer = form.closest('.card');
+            const formTitle = formContainer.querySelector('.card-title');
+            const submitButton = form.querySelector('button[type="submit"]');
+            const cancelButton = form.querySelector('.cancel-edit-btn');
+            
+            formContainer.classList.remove('editing');
+            formTitle.textContent = 'Create Category';
+            submitButton.textContent = 'Create Category';
+            if (cancelButton) cancelButton.remove();
+            form.dataset.editId = '';
+            form.reset();
+        });
+
+        // Reload categories
+        await loadCategories();
+    } catch (error) {
+        console.error('Error updating category:', error);
+        
+        // Show error modal
+        const errorModalHtml = `
+            <div class="modal fade" id="errorModal" tabindex="-1">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Error</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <p>${error.message}</p>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        const errorModalElement = new DOMParser().parseFromString(errorModalHtml, 'text/html').body.firstChild;
+        document.body.appendChild(errorModalElement);
+        
+        const errorModal = new bootstrap.Modal(errorModalElement);
+        errorModalElement.addEventListener('hidden.bs.modal', () => errorModalElement.remove());
+        errorModal.show();
+        
+        throw error;
     }
-    
-    return true;
 } 

@@ -1,5 +1,5 @@
-import { loadCategories, createCategory, handleEditCategory, handleDeleteCategory } from '../modules/categories.js';
-import { showErrorMessage } from '../modules/modal.js';
+import { loadCategories, createCategory, updateCategory, handleEditCategory, handleDeleteCategory } from '../modules/categories.js';
+import { createModal, showModal } from '../modules/modal.js';
 
 document.addEventListener('DOMContentLoaded', async () => {
     try {
@@ -9,17 +9,47 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Set up form submission handler
         const categoryForm = document.getElementById('categoryForm');
         if (categoryForm) {
-            // Remove any existing event listeners by cloning and replacing
-            const newCategoryForm = categoryForm.cloneNode(true);
-            categoryForm.parentNode.replaceChild(newCategoryForm, categoryForm);
-            
-            newCategoryForm.addEventListener('submit', async (event) => {
+            categoryForm.addEventListener('submit', async (event) => {
                 event.preventDefault();
                 try {
-                    await createCategory(event);
+                    const formData = {
+                        name: document.getElementById('categoryName').value.trim(),
+                        description: document.getElementById('categoryDescription').value.trim()
+                    };
+
+                    if (!formData.name) {
+                        const errorModal = createModal('delete', 'Error');
+                        showModal(errorModal, 'Category name is required');
+                        return;
+                    }
+
+                    const editId = categoryForm.dataset.editId;
+                    if (editId) {
+                        await updateCategory(editId, formData);
+                        
+                        // Reset form state
+                        const formContainer = categoryForm.closest('.card');
+                        const formTitle = formContainer.querySelector('.card-title');
+                        const submitButton = categoryForm.querySelector('button[type="submit"]');
+                        const cancelButton = categoryForm.querySelector('.cancel-edit-btn');
+                        
+                        formContainer.classList.remove('editing');
+                        formTitle.textContent = 'Create Category';
+                        submitButton.textContent = 'Create Category';
+                        if (cancelButton) cancelButton.remove();
+                        
+                        categoryForm.dataset.editId = '';
+                    } else {
+                        await createCategory(formData);
+                    }
+
+                    // Reset form and reload categories
+                    categoryForm.reset();
+                    await loadCategories();
                 } catch (error) {
                     console.error('Error handling category:', error);
-                    showErrorMessage('Error: ' + error.message);
+                    const errorModal = createModal('delete', 'Error');
+                    showModal(errorModal, error.message);
                 }
             });
         }
@@ -27,12 +57,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Set up event delegation for categories list
         const categoriesList = document.getElementById('categoriesList');
         if (categoriesList) {
-            // Remove any existing event listeners by cloning and replacing
-            const newCategoriesList = categoriesList.cloneNode(true);
-            categoriesList.parentNode.replaceChild(newCategoriesList, categoriesList);
-
-            // Add single event listener for all category actions
-            newCategoriesList.addEventListener('click', async (e) => {
+            categoriesList.addEventListener('click', async (e) => {
                 const button = e.target.closest('button[data-action]');
                 if (!button) return;
 
@@ -50,6 +75,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     } catch (error) {
         console.error('Error initializing categories:', error);
-        showErrorMessage('Error loading categories. Please refresh the page.');
+        const errorModal = createModal('delete', 'Error');
+        showModal(errorModal, 'Error loading categories. Please refresh the page.');
     }
 }); 
