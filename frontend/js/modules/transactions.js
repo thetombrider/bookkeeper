@@ -15,7 +15,13 @@ export {
     addJournalEntryRow,
     removeJournalEntry,
     updateTotals,
-    updateTransactionsTable
+    updateTransactionsTable,
+    showTransactionForm,
+    hideTransactionForm,
+    handleTransactionSubmit,
+    handleDeleteTransaction,
+    applyFilters,
+    validateAccountUsage
 };
 
 // Add sorting state and cached transactions
@@ -55,12 +61,6 @@ async function loadTransactions() {
                     <option value="${account.id}">${account.name}</option>
                 `).join('')}
             `;
-        }
-        
-        // Set up event listeners only once
-        if (!isInitialized) {
-            setupEventListeners();
-            isInitialized = true;
         }
         
         // Check accounts availability
@@ -138,96 +138,23 @@ function formatAccountsList(entries) {
     return `${entries[0].account.name} (+${entries.length - 1} more)`;
 }
 
-function setupEventListeners() {
-    // Add Transaction button
-    const addBtn = document.querySelector('[data-action="add-transaction"]');
-    if (addBtn) {
-        addBtn.onclick = showTransactionForm;
-    }
-
-    // Import button
-    const importBtn = document.querySelector('[data-action="import-transactions"]');
-    if (importBtn) {
-        importBtn.onclick = () => {
-            showErrorMessage('Import functionality coming soon!');
-        };
-    }
-
-    // Transaction form
-    const form = document.getElementById('transactionEditForm');
-    if (form) {
-        form.addEventListener('submit', handleTransactionSubmit);
-    }
-
-    // Cancel button
-    const cancelBtn = form?.querySelector('[data-action="cancel-edit"]');
-    if (cancelBtn) {
-        cancelBtn.onclick = hideTransactionForm;
-    }
-
-    // Journal entries list - handle remove entry and account changes
-    const journalEntriesList = document.querySelector('.journal-entries-list');
-    if (journalEntriesList) {
-        journalEntriesList.addEventListener('click', (e) => {
-            const removeBtn = e.target.closest('[data-action="remove-entry"]');
-            if (removeBtn) {
-                const row = removeBtn.closest('.journal-entry-row');
-                if (row) {
-                    removeJournalEntry(row);
-                }
-            }
-        });
-
-        // Add change event listener for account selects
-        journalEntriesList.addEventListener('change', (e) => {
-            if (e.target.classList.contains('journal-entry-account')) {
-                validateAccountUsage(e.target);
-            }
-        });
-    }
-
-    // Table actions
-    const tbody = document.querySelector('#transactionsTable tbody');
-    if (tbody) {
-        tbody.addEventListener('click', async (e) => {
-            const button = e.target.closest('button[data-action]');
-            if (!button) return;
-
-            const action = button.dataset.action;
-            const id = button.dataset.id;
-            
-            if (action === 'view') {
-                await viewTransaction(id);
-            } else if (action === 'delete') {
-                await handleDeleteTransaction(id);
-            }
-        });
-    }
-
-    // Apply filters button
-    const filterBtn = document.querySelector('[data-action="apply-filters"]');
-    if (filterBtn) {
-        filterBtn.onclick = applyFilters;
-    }
-}
-
 function showTransactionForm() {
-    const form = document.getElementById('transactionForm');
-    if (form) {
-        form.style.display = 'block';
-        form.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        
-        // Set today's date as default
-        const dateInput = document.getElementById('transactionDate');
-        if (dateInput) {
-            dateInput.value = new Date().toISOString().split('T')[0];
-        }
-
-        // Add initial journal entry if none exist
-        const entriesList = document.querySelector('.journal-entries-list');
-        if (entriesList && !entriesList.children.length) {
-            addJournalEntryRow();
-        }
+    const formContainer = document.getElementById('transactionForm');
+    const form = document.getElementById('transactionEditForm');
+    const entriesList = document.querySelector('.journal-entries-list');
+    
+    if (formContainer) {
+        formContainer.style.display = 'block';
+    }
+    
+    if (form && entriesList) {
+        form.reset();
+        // Clear existing entries
+        entriesList.innerHTML = '';
+        // Add initial journal entry row
+        addJournalEntryRow();
+        // Reset totals
+        updateTotals();
     }
 }
 
@@ -252,45 +179,84 @@ function hideTransactionForm() {
 }
 
 function addJournalEntryRow() {
-    const entriesList = document.querySelector('.journal-entries-list');
-    if (!entriesList) return;
-
-    // Get template
-    const template = document.getElementById('journalEntryTemplate');
-    if (!template) return;
-
-    // Clone template
-    const newRow = template.content.cloneNode(true);
+    console.log('Adding new journal entry row');  // Debug log
     
-    // Add accounts to select
-    const select = newRow.querySelector('.journal-entry-account');
-    if (select) {
-        select.innerHTML = `
-            <option value="">Select account...</option>
-            ${allAccounts.map(account => `
-                <option value="${account.id}">${account.name}</option>
-            `).join('')}
-        `;
+    // Get the list and template
+    const entriesList = document.querySelector('.journal-entries-list');
+    const template = document.getElementById('journalEntryTemplate');
+    
+    if (!entriesList || !template) {
+        console.error('Required elements not found:', { entriesList: !!entriesList, template: !!template });
+        return;
     }
 
-    // Add input event listeners for debit/credit fields
-    const debitInput = newRow.querySelector('.journal-entry-debit');
-    const creditInput = newRow.querySelector('.journal-entry-credit');
+    try {
+        // Clone the template content
+        const newRow = template.content.cloneNode(true);
+        
+        // Get references to elements in the cloned content
+        const select = newRow.querySelector('.journal-entry-account');
+        const debitInput = newRow.querySelector('.journal-entry-debit');
+        const creditInput = newRow.querySelector('.journal-entry-credit');
+        const removeBtn = newRow.querySelector('[data-action="remove-entry"]');
 
-    if (debitInput && creditInput) {
-        debitInput.addEventListener('input', function() {
-            if (this.value) creditInput.value = '';
-            updateTotals();
-        });
+        // Populate accounts dropdown
+        if (select && allAccounts) {
+            select.innerHTML = `
+                <option value="">Select account...</option>
+                ${allAccounts.map(account => `
+                    <option value="${account.id}">${account.name}</option>
+                `).join('')}
+            `;
+        }
 
-        creditInput.addEventListener('input', function() {
-            if (this.value) debitInput.value = '';
-            updateTotals();
-        });
+        // Add the row to the DOM
+        entriesList.appendChild(newRow);
+
+        // Now get references to the actual elements in the DOM
+        const addedRow = entriesList.lastElementChild;
+        const addedSelect = addedRow.querySelector('.journal-entry-account');
+        const addedDebitInput = addedRow.querySelector('.journal-entry-debit');
+        const addedCreditInput = addedRow.querySelector('.journal-entry-credit');
+        const addedRemoveBtn = addedRow.querySelector('[data-action="remove-entry"]');
+
+        // Set up event listeners
+        if (addedSelect) {
+            addedSelect.addEventListener('change', () => validateAccountUsage(addedSelect));
+        }
+
+        if (addedDebitInput) {
+            addedDebitInput.addEventListener('input', function() {
+                if (this.value && this.value !== '0') {
+                    addedCreditInput.value = '';
+                }
+                updateTotals();
+            });
+        }
+
+        if (addedCreditInput) {
+            addedCreditInput.addEventListener('input', function() {
+                if (this.value && this.value !== '0') {
+                    addedDebitInput.value = '';
+                }
+                updateTotals();
+            });
+        }
+
+        if (addedRemoveBtn) {
+            addedRemoveBtn.addEventListener('click', function() {
+                addedRow.remove();
+                updateTotals();
+            });
+        }
+
+        // Update totals after adding the row
+        updateTotals();
+        console.log('Journal entry row added successfully');
+        
+    } catch (error) {
+        console.error('Error adding journal entry row:', error);
     }
-
-    entriesList.appendChild(newRow);
-    updateTotals();
 }
 
 function removeJournalEntry(row) {
@@ -325,14 +291,16 @@ function updateTotals() {
 }
 
 async function handleTransactionSubmit(e) {
-    e.preventDefault();
-    
-    // Disable submit button to prevent double submission
+    // Get the submit button
     const submitButton = e.target.querySelector('button[type="submit"]');
+    
+    // Check if already submitting
+    if (submitButton?.disabled) {
+        return;
+    }
+    
+    // Disable the submit button and show loading state
     if (submitButton) {
-        if (submitButton.disabled) {
-            return; // Already submitting
-        }
         submitButton.disabled = true;
         submitButton.innerHTML = '<i class="bi bi-hourglass"></i> Saving...';
     }
@@ -341,13 +309,13 @@ async function handleTransactionSubmit(e) {
         // Get all journal entries
         const entriesList = document.querySelector('.journal-entries-list');
         if (!entriesList) {
-            showErrorMessage('Error: Journal entries list not found');
-            return;
+            throw new Error('Journal entries list not found');
         }
 
         const entries = [];
         const usedAccounts = new Set();
-        let hasValidationError = false;
+        let totalDebits = 0;
+        let totalCredits = 0;
 
         // Validate description first
         const description = document.getElementById('transactionDescription')?.value?.trim();
@@ -369,13 +337,13 @@ async function handleTransactionSubmit(e) {
             return;
         }
 
-        journalRows.forEach(row => {
+        // Process all entries first to validate
+        for (const row of journalRows) {
             const accountSelect = row.querySelector('.journal-entry-account');
             const debitInput = row.querySelector('.journal-entry-debit');
             const creditInput = row.querySelector('.journal-entry-credit');
 
             if (!accountSelect || !debitInput || !creditInput) {
-                hasValidationError = true;
                 showErrorMessage('Invalid journal entry row structure');
                 return;
             }
@@ -386,34 +354,29 @@ async function handleTransactionSubmit(e) {
             
             // Skip empty rows
             if (!accountId || (debit === 0 && credit === 0)) {
-                return;
+                continue;
             }
 
             // Check if account is already used
             if (usedAccounts.has(accountId)) {
-                hasValidationError = true;
                 showErrorMessage('Each account can only be used once per transaction.');
                 return;
             }
 
             // Check if trying to debit and credit same account
             if (debit > 0 && credit > 0) {
-                hasValidationError = true;
                 showErrorMessage('An account cannot be both debited and credited in the same entry.');
                 return;
             }
 
+            totalDebits += debit;
+            totalCredits += credit;
             usedAccounts.add(accountId);
             entries.push({
                 account_id: accountId,
                 debit_amount: debit,
                 credit_amount: credit
             });
-        });
-
-        // Stop if validation failed
-        if (hasValidationError) {
-            return;
         }
 
         // Validate minimum entries
@@ -421,10 +384,6 @@ async function handleTransactionSubmit(e) {
             showErrorMessage('At least two journal entries are required');
             return;
         }
-
-        // Calculate totals
-        const totalDebits = entries.reduce((sum, entry) => sum + entry.debit_amount, 0);
-        const totalCredits = entries.reduce((sum, entry) => sum + entry.credit_amount, 0);
 
         // Validate debits = credits with small tolerance for floating point arithmetic
         if (Math.abs(totalDebits - totalCredits) >= 0.01) {
@@ -442,7 +401,7 @@ async function handleTransactionSubmit(e) {
         if (result) {
             showSuccessMessage('Transaction created successfully!');
             hideTransactionForm();
-            // Update local state and table
+            // Update local state and table immediately
             allTransactions = [result, ...allTransactions];
             updateTransactionsTable();
         }
@@ -672,49 +631,39 @@ function validateAccountUsage(changedSelect) {
     const currentDebit = currentRow.querySelector('.journal-entry-debit');
     const currentCredit = currentRow.querySelector('.journal-entry-credit');
 
-    let accountUsages = [];
-
-    // Collect all usages of the selected account
+    // Check if account is already used in another entry
+    let isAccountUsed = false;
     allAccountSelects.forEach(select => {
         if (select.value === selectedAccountId && select !== changedSelect) {
-            const row = select.closest('.journal-entry-row');
-            const debit = row.querySelector('.journal-entry-debit').value;
-            const credit = row.querySelector('.journal-entry-credit').value;
-            
-            if (debit) accountUsages.push('debit');
-            if (credit) accountUsages.push('credit');
+            isAccountUsed = true;
         }
     });
 
-    // If account is already used
-    if (accountUsages.length > 0) {
+    // If account is already used, show error and reset
+    if (isAccountUsed) {
         showErrorMessage('This account is already used in another entry. An account can only be used once per transaction.');
-        changedSelect.value = ''; // Reset the selection
+        changedSelect.value = '';
         return;
     }
 
     // Add input event listeners to prevent debit/credit on same account
-    currentDebit.addEventListener('input', () => {
+    const handleInput = () => {
         if (currentDebit.value && currentCredit.value) {
             showErrorMessage('An account cannot be both debited and credited in the same entry.');
-            currentDebit.value = '';
+            // Clear the most recently entered value
+            if (document.activeElement === currentDebit) {
+                currentDebit.value = '';
+            } else {
+                currentCredit.value = '';
+            }
         }
-    });
+    };
 
-    currentCredit.addEventListener('input', () => {
-        if (currentDebit.value && currentCredit.value) {
-            showErrorMessage('An account cannot be both debited and credited in the same entry.');
-            currentCredit.value = '';
-        }
-    });
+    // Remove any existing listeners to prevent duplicates
+    currentDebit.removeEventListener('input', handleInput);
+    currentCredit.removeEventListener('input', handleInput);
+
+    // Add new listeners
+    currentDebit.addEventListener('input', handleInput);
+    currentCredit.addEventListener('input', handleInput);
 }
-
-// Instead, export an initialization function
-export async function initializeTransactions() {
-    if (!isInitialized) {
-        await loadTransactions();
-    }
-}
-
-// Initialize when the module is loaded
-document.addEventListener('DOMContentLoaded', initializeTransactions);
