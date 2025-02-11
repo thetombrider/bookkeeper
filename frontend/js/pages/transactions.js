@@ -164,6 +164,14 @@ function setupEventListeners() {
         };
     }
 
+    // Export button
+    const exportBtn = document.querySelector('[data-action="export-transactions"]');
+    if (exportBtn) {
+        exportBtn.onclick = () => {
+            showErrorMessage('Export functionality coming soon!');
+        };
+    }
+
     // Transaction form
     const form = document.getElementById('transactionEditForm');
     if (form) {
