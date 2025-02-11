@@ -54,14 +54,18 @@
     <!-- Main Content -->
     <main class="container py-4">
         <section id="balance-sheet">
-            <div class="d-flex justify-content-between align-items-center mb-4">
-                <h2 class="mb-0">Balance Sheet</h2>
-                <div class="d-flex gap-2 align-items-center">
-                    <label for="balanceSheetDate" class="form-label mb-0">As of:</label>
-                    <input type="date" id="balanceSheetDate" class="form-control form-control-sm">
-                    <button data-action="refresh-balance-sheet" class="btn btn-primary btn-sm">
-                        <i class="bi bi-arrow-clockwise"></i> Refresh
-                    </button>
+            <div class="row align-items-center mb-4">
+                <div class="col">
+                    <h2 class="mb-0">Balance Sheet</h2>
+                </div>
+                <div class="col-auto">
+                    <div class="input-group">
+                        <span class="input-group-text">As of:</span>
+                        <input type="date" id="balanceSheetDate" class="form-control">
+                        <button data-action="refresh-balance-sheet" class="btn btn-primary">
+                            <i class="bi bi-arrow-clockwise"></i> Refresh
+                        </button>
+                    </div>
                 </div>
             </div>
             
