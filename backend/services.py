@@ -551,14 +551,18 @@ class BookkeepingService:
     def list_transactions(
         self,
         start_date: Optional[date] = None,
-        end_date: Optional[date] = None
+        end_date: Optional[date] = None,
+        account_id: Optional[str] = None,
+        account_filter_type: Optional[str] = None
     ) -> List[models.Transaction]:
         """
-        List all transactions with optional date filtering.
+        List all transactions with optional filtering.
         
         Args:
             start_date: Optional start date for filtering
             end_date: Optional end date for filtering
+            account_id: Optional account ID to filter by
+            account_filter_type: Type of account filter ('any' to match either debit or credit)
             
         Returns:
             List[Transaction]: List of transactions matching the criteria
@@ -576,6 +580,17 @@ class BookkeepingService:
             query = query.filter(models.Transaction.transaction_date >= start_date)
         if end_date:
             query = query.filter(models.Transaction.transaction_date <= end_date)
+            
+        # Add account filtering
+        if account_id:
+            # Filter transactions where the account appears in either debit or credit entries
+            if account_filter_type == 'any':
+                query = query.filter(
+                    models.Transaction.id.in_(
+                        self.db.query(models.JournalEntry.transaction_id)
+                        .filter(models.JournalEntry.account_id == account_id)
+                    )
+                )
             
         return query.order_by(models.Transaction.transaction_date.desc()).all()
 

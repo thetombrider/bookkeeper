@@ -1,6 +1,6 @@
 import { API_URL, formatCurrency, parseDecimalNumber } from './config.js';
 import { allAccounts, loadAccounts } from './accounts.js';
-import { createModal, showModal, showSuccessMessage, showErrorMessage, showConfirmDialog } from './modal.js';
+import { showConfirmDialog, showSuccessMessage, showErrorMessage } from './modal.js';
 
 // State
 let allTransactions = [];
@@ -38,6 +38,17 @@ async function loadTransactions() {
         // Update transactions table
         updateTransactionsTable();
         
+        // Populate account filter dropdown
+        const filterAccountSelect = document.getElementById('filterAccount');
+        if (filterAccountSelect) {
+            filterAccountSelect.innerHTML = `
+                <option value="">All accounts</option>
+                ${allAccounts.map(account => `
+                    <option value="${account.id}">${account.name}</option>
+                `).join('')}
+            `;
+        }
+        
         // Set up event listeners
         setupEventListeners();
         
@@ -57,12 +68,24 @@ async function loadTransactions() {
 
 function updateTransactionsTable() {
     const table = document.getElementById('transactionsTable');
-    if (!table) return;
+    if (!table) {
+        console.error('Transaction table element not found');
+        return;
+    }
 
     const tbody = table.querySelector('tbody');
-    if (!tbody) return;
+    if (!tbody) {
+        console.error('Transaction table body not found');
+        return;
+    }
 
-    tbody.innerHTML = allTransactions.map(transaction => {
+    console.log('Updating table with transactions:', allTransactions);
+
+    // Clear existing content
+    tbody.innerHTML = '';
+
+    // Add new content
+    const tableContent = allTransactions.map(transaction => {
         const debitEntries = transaction.journal_entries.filter(entry => entry.debit_amount > 0);
         const creditEntries = transaction.journal_entries.filter(entry => entry.credit_amount > 0);
         const amount = debitEntries.reduce((sum, entry) => sum + parseFloat(entry.debit_amount), 0);
@@ -85,6 +108,9 @@ function updateTransactionsTable() {
             </tr>
         `;
     }).join('');
+
+    tbody.innerHTML = tableContent;
+    console.log('Table updated with', allTransactions.length, 'transactions');
 }
 
 function formatDate(dateString) {
@@ -336,20 +362,44 @@ async function applyFilters() {
         
         if (startDate) params.append('start_date', startDate);
         if (endDate) params.append('end_date', endDate);
-        if (accountId) params.append('account_id', accountId);
-
-        if (params.toString()) {
-            url += '?' + params.toString();
+        if (accountId) {
+            // Make sure we're sending the account_id as a string
+            params.append('account_id', accountId.toString());
+            // Specify that we want to match either credit or debit account
+            params.append('account_filter_type', 'any');
         }
 
+        const queryString = params.toString();
+        if (queryString) {
+            url += '?' + queryString;
+        }
+
+        console.log('Fetching filtered transactions from:', url);
+        
         const response = await fetch(url);
         if (!response.ok) {
-            throw new Error('Failed to load filtered transactions');
+            const errorData = await response.json();
+            throw new Error(errorData.detail || 'Failed to load filtered transactions');
         }
 
-        allTransactions = await response.json();
+        const data = await response.json();
+        console.log('Received filtered transactions:', data);
+
+        // Clear existing transactions and update with filtered data
+        allTransactions = [...data];
+        
+        // If no transactions found after filtering, show a message but don't clear the table
+        if (allTransactions.length === 0) {
+            showErrorMessage('No transactions found for the selected filters');
+        }
+        
+        // Update the table with filtered results
         updateTransactionsTable();
+        
+        // Show success message
+        showSuccessMessage('Filters applied successfully');
     } catch (error) {
+        console.error('Error applying filters:', error);
         showErrorMessage('Error applying filters: ' + error.message);
     }
 }
@@ -385,64 +435,75 @@ async function deleteTransaction(id) {
 
 async function viewTransaction(id) {
     try {
+        // Check for existing modal instance and dispose it
+        const modalElement = document.getElementById('viewTransactionModal');
+        if (!modalElement) {
+            throw new Error('Modal element not found');
+        }
+
+        // Get existing modal instance if any and dispose it
+        const existingModal = bootstrap.Modal.getInstance(modalElement);
+        if (existingModal) {
+            existingModal.dispose();
+        }
+
         const response = await fetch(`${API_URL}/transactions/${id}`);
         if (!response.ok) {
             throw new Error('Failed to load transaction details');
         }
         const transaction = await response.json();
 
-        const modalHtml = `
-            <div class="modal fade" id="transactionModal" tabindex="-1">
-                <div class="modal-dialog">
-                    <div class="modal-content">
-                        <div class="modal-header">
-                            <h5 class="modal-title">Transaction Details</h5>
-                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                        </div>
-                        <div class="modal-body">
-                            <div class="mb-3">
-                                <label class="fw-bold">Date:</label>
-                                <div>${formatDate(transaction.transaction_date)}</div>
-                            </div>
-                            <div class="mb-3">
-                                <label class="fw-bold">Description:</label>
-                                <div>${transaction.description}</div>
-                            </div>
-                            <div class="mb-3">
-                                <label class="fw-bold">Entries:</label>
-                                <table class="table table-sm">
-                                    <thead>
-                                        <tr>
-                                            <th>Account</th>
-                                            <th class="text-end">Debit</th>
-                                            <th class="text-end">Credit</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        ${transaction.entries.map(entry => `
-                                            <tr>
-                                                <td>${entry.account.name}</td>
-                                                <td class="text-end numeric">${formatCurrency(entry.debit_amount)}</td>
-                                                <td class="text-end numeric">${formatCurrency(entry.credit_amount)}</td>
-                                            </tr>
-                                        `).join('')}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                        <div class="modal-footer">
-                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                        </div>
-                    </div>
-                </div>
+        // Update the modal content
+        const modalBody = modalElement.querySelector('.modal-body');
+        modalBody.innerHTML = `
+            <div class="mb-3">
+                <label class="fw-bold">Date:</label>
+                <div>${formatDate(transaction.transaction_date)}</div>
+            </div>
+            <div class="mb-3">
+                <label class="fw-bold">Description:</label>
+                <div>${transaction.description}</div>
+            </div>
+            <div class="mb-3">
+                <label class="fw-bold">Entries:</label>
+                <table class="table table-sm">
+                    <thead>
+                        <tr>
+                            <th>Account</th>
+                            <th class="text-end">Debit</th>
+                            <th class="text-end">Credit</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${transaction.journal_entries.map(entry => `
+                            <tr>
+                                <td>${entry.account.name}</td>
+                                <td class="text-end numeric">${formatCurrency(entry.debit_amount)}</td>
+                                <td class="text-end numeric">${formatCurrency(entry.credit_amount)}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
             </div>
         `;
 
-        const modalElement = new DOMParser().parseFromString(modalHtml, 'text/html').body.firstChild;
-        document.body.appendChild(modalElement);
-
+        // Create and show new modal instance
         const modal = new bootstrap.Modal(modalElement);
-        modalElement.addEventListener('hidden.bs.modal', () => modalElement.remove());
+        
+        // Add hidden event handler
+        modalElement.addEventListener('hidden.bs.modal', () => {
+            modal.dispose();
+            // Remove modal backdrop if it exists
+            const backdrop = document.querySelector('.modal-backdrop');
+            if (backdrop) {
+                backdrop.remove();
+            }
+            // Remove modal-open class and inline styles from body
+            document.body.classList.remove('modal-open');
+            document.body.style.removeProperty('padding-right');
+            document.body.style.removeProperty('overflow');
+        }, { once: true }); // Use once: true to ensure the listener is removed after execution
+
         modal.show();
     } catch (error) {
         showErrorMessage('Error viewing transaction: ' + error.message);

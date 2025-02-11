@@ -302,11 +302,18 @@ async def get_transaction(
 async def list_transactions(
     start_date: Optional[date] = None,
     end_date: Optional[date] = None,
+    account_id: Optional[str] = None,
+    account_filter_type: Optional[str] = None,
     db: Session = Depends(get_db)
 ):
-    """List all transactions, optionally filtered by date range."""
+    """List all transactions, optionally filtered by date range and account."""
     service = BookkeepingService(db)
-    return service.list_transactions(start_date=start_date, end_date=end_date)
+    return service.list_transactions(
+        start_date=start_date,
+        end_date=end_date,
+        account_id=account_id,
+        account_filter_type=account_filter_type
+    )
 
 @app.put("/transactions/{transaction_id}", response_model=TransactionResponse, tags=["transactions"])
 async def update_transaction(
