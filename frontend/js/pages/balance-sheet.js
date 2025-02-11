@@ -1,43 +1,45 @@
 import { loadBalanceSheet } from '../modules/reports.js';
+import { showSuccessMessage, showErrorMessage } from '../modules/modal.js';
 
-document.addEventListener('DOMContentLoaded', async () => {
-    try {
-        // Load initial balance sheet
-        await loadBalanceSheet();
+document.addEventListener('DOMContentLoaded', () => {
+    const dateInput = document.getElementById('balanceSheetDate');
+    const refreshBtn = document.querySelector('[data-action="refresh-balance-sheet"]');
 
-        // Set up event listener for refresh button
-        const refreshBtn = document.querySelector('[data-action="refresh-balance-sheet"]');
-        const dateInput = document.getElementById('balanceSheetDate');
-
-        if (refreshBtn) {
-            // Remove any existing event listeners by cloning and replacing
-            const newRefreshBtn = refreshBtn.cloneNode(true);
-            refreshBtn.parentNode.replaceChild(newRefreshBtn, refreshBtn);
-
-            newRefreshBtn.addEventListener('click', async () => {
-                const date = dateInput.value;
+    async function refreshBalanceSheet() {
+        const date = document.getElementById('balanceSheetDate').value;
+        
+        if (date) {
+            try {
                 await loadBalanceSheet(date);
-            });
-        }
-
-        // Set up event listener for date change
-        if (dateInput) {
-            // Remove any existing event listeners by cloning and replacing
-            const newDateInput = dateInput.cloneNode(true);
-            dateInput.parentNode.replaceChild(newDateInput, dateInput);
-
-            newDateInput.addEventListener('change', async () => {
-                await loadBalanceSheet(newDateInput.value);
-            });
-
-            // Set default date to today if not set
-            if (!newDateInput.value) {
-                newDateInput.value = new Date().toISOString().split('T')[0];
-                await loadBalanceSheet(newDateInput.value);
+                showSuccessMessage('Balance sheet refreshed successfully!');
+            } catch (error) {
+                console.error('Error loading balance sheet:', error);
+                showErrorMessage('Error loading balance sheet: ' + error.message);
             }
+        } else {
+            showErrorMessage('Please select a date');
         }
-    } catch (error) {
-        console.error('Error initializing balance sheet:', error);
-        alert('Error loading balance sheet. Please refresh the page.');
+    }
+
+    // Set up event listeners
+    if (dateInput) {
+        dateInput.addEventListener('change', () => {
+            // Don't automatically refresh on date change
+            // Let user click the refresh button instead
+            console.log(`Date changed - ${dateInput.id}: ${dateInput.value}`);
+        });
+    }
+
+    if (refreshBtn) {
+        refreshBtn.addEventListener('click', refreshBalanceSheet);
+    }
+
+    // Set default date if none is set
+    if (!dateInput.value) {
+        const today = new Date();
+        dateInput.value = today.toISOString().split('T')[0];
+        
+        // Load initial balance sheet
+        refreshBalanceSheet();
     }
 }); 

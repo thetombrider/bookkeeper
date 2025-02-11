@@ -1,4 +1,5 @@
 import { loadIncomeStatement } from '../modules/reports.js';
+import { showSuccessMessage, showErrorMessage } from '../modules/modal.js';
 
 document.addEventListener('DOMContentLoaded', () => {
     // Get the input elements and refresh button
@@ -13,12 +14,13 @@ document.addEventListener('DOMContentLoaded', () => {
         if (startDate && endDate) {
             try {
                 await loadIncomeStatement(startDate, endDate);
+                showSuccessMessage('Income statement refreshed successfully!');
             } catch (error) {
                 console.error('Error loading income statement:', error);
-                alert('Error loading income statement. Please try again.');
+                showErrorMessage('Error loading income statement: ' + error.message);
             }
         } else {
-            alert('Please select both start and end dates');
+            showErrorMessage('Please select both start and end dates');
         }
     }
 

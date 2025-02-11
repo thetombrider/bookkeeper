@@ -1,112 +1,137 @@
-// Modal utility functions
-export function createModal(type, title) {
-    const modal = document.createElement('div');
-    modal.className = `modal modal-${type}`;
-    
-    modal.innerHTML = `
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3>${title}</h3>
-                <button class="close-modal">&times;</button>
-            </div>
-            <div class="modal-body"></div>
-            ${type !== 'success' ? `
-            <div class="modal-footer">
-                ${type === 'delete' ? `
-                    <button class="btn-cancel">Cancel</button>
-                    <button class="btn-confirm">Delete</button>
-                ` : type === 'edit' ? `
-                    <button class="btn-cancel">Cancel</button>
-                    <button class="btn-confirm">Save Changes</button>
-                ` : ''}
-            </div>
-            ` : ''}
-        </div>
-    `;
-
-    // Add event listeners
-    const closeBtn = modal.querySelector('.close-modal');
-    const cancelBtn = modal.querySelector('.btn-cancel');
-    
-    closeBtn.addEventListener('click', () => hideModal(modal));
-    if (cancelBtn) {
-        cancelBtn.addEventListener('click', () => hideModal(modal));
-    }
-
-    // Close on click outside
-    modal.addEventListener('click', (e) => {
-        if (e.target === modal) {
-            hideModal(modal);
-        }
-    });
-
-    // Auto-hide success modals after 2 seconds
-    if (type === 'success') {
-        setTimeout(() => hideModal(modal), 2000);
-    }
-
-    return modal;
-}
-
-export function showModal(modal, content) {
-    // Set content
-    const modalBody = modal.querySelector('.modal-body');
-    if (typeof content === 'string') {
-        modalBody.innerHTML = `<div class="modal-message">${content}</div>`;
-    } else if (content instanceof HTMLElement) {
-        modalBody.innerHTML = '';
-        modalBody.appendChild(content);
-    }
-
-    // Show modal with animation
-    document.body.appendChild(modal);
-    requestAnimationFrame(() => {
-        modal.classList.add('show');
-    });
-}
-
-export function hideModal(modal) {
-    modal.classList.remove('show');
-    modal.addEventListener('transitionend', () => {
-        modal.remove();
-    }, { once: true });
-}
+// Modal utility functions using Bootstrap
 
 export function showConfirmDialog(message, type = 'delete') {
     return new Promise((resolve) => {
-        const modal = createModal(type, type === 'delete' ? 'Confirm Delete' : 'Confirm Action');
-        const confirmBtn = modal.querySelector('.btn-confirm');
-        
-        modal.querySelector('.modal-body').innerHTML = `
-            <div class="modal-message ${type === 'delete' ? 'warning' : ''}">${message}</div>
+        const modalHtml = `
+            <div class="modal fade" id="confirmModal" tabindex="-1">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">${type === 'delete' ? 'Confirm Delete' : 'Confirm Action'}</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <p>${message}</p>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                            <button type="button" class="btn ${type === 'delete' ? 'btn-danger' : 'btn-primary'}" id="confirmButton">
+                                ${type === 'delete' ? 'Delete' : 'Confirm'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
         `;
 
-        confirmBtn.addEventListener('click', () => {
-            hideModal(modal);
-            resolve(true);
-        });
+        const modalElement = new DOMParser().parseFromString(modalHtml, 'text/html').body.firstChild;
+        document.body.appendChild(modalElement);
+        
+        const modal = new bootstrap.Modal(modalElement);
 
-        modal.querySelector('.btn-cancel').addEventListener('click', () => {
-            hideModal(modal);
+        modalElement.querySelector('#confirmButton').onclick = () => {
+            modal.hide();
+            resolve(true);
+        };
+
+        modalElement.addEventListener('hidden.bs.modal', () => {
+            modalElement.remove();
             resolve(false);
         });
 
-        showModal(modal);
+        modal.show();
     });
 }
 
 export function showSuccessMessage(message) {
-    const modal = createModal('success', 'Success');
-    modal.querySelector('.modal-body').innerHTML = `
-        <div class="modal-message success">${message}</div>
+    const toastHtml = `
+        <div class="toast align-items-center text-white bg-success border-0" role="alert">
+            <div class="d-flex">
+                <div class="toast-body">
+                    ${message}
+                </div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+            </div>
+        </div>
     `;
-    showModal(modal);
+    
+    const toastElement = new DOMParser().parseFromString(toastHtml, 'text/html').body.firstChild;
+    const toastContainer = document.createElement('div');
+    toastContainer.className = 'toast-container position-fixed top-0 end-0 p-3';
+    toastContainer.appendChild(toastElement);
+    document.body.appendChild(toastContainer);
+    
+    const toast = new bootstrap.Toast(toastElement, { delay: 2000 });
+    toast.show();
+    
+    toastElement.addEventListener('hidden.bs.toast', () => toastContainer.remove());
 }
 
 export function showErrorMessage(message) {
-    const modal = createModal('delete', 'Error');
-    modal.querySelector('.modal-body').innerHTML = `
-        <div class="modal-message warning">${message}</div>
+    const modalHtml = `
+        <div class="modal fade" id="errorModal" tabindex="-1">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Error</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p>${message}</p>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    </div>
+                </div>
+            </div>
+        </div>
     `;
-    showModal(modal);
+    
+    const modalElement = new DOMParser().parseFromString(modalHtml, 'text/html').body.firstChild;
+    document.body.appendChild(modalElement);
+    
+    const modal = new bootstrap.Modal(modalElement);
+    modalElement.addEventListener('hidden.bs.modal', () => modalElement.remove());
+    modal.show();
+}
+
+export function showFormModal(title, content, onConfirm) {
+    const modalHtml = `
+        <div class="modal fade" id="formModal" tabindex="-1">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">${title}</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        ${typeof content === 'string' ? content : ''}
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="button" class="btn btn-primary" id="confirmButton">Save</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    const modalElement = new DOMParser().parseFromString(modalHtml, 'text/html').body.firstChild;
+    if (typeof content === 'object') {
+        modalElement.querySelector('.modal-body').appendChild(content);
+    }
+    document.body.appendChild(modalElement);
+    
+    const modal = new bootstrap.Modal(modalElement);
+    
+    modalElement.querySelector('#confirmButton').onclick = () => {
+        if (onConfirm()) {
+            modal.hide();
+        }
+    };
+    
+    modalElement.addEventListener('hidden.bs.modal', () => modalElement.remove());
+    modal.show();
+    
+    return modal;
 } 

@@ -391,8 +391,7 @@ async function viewTransaction(id) {
         }
         const transaction = await response.json();
 
-        // Create modal content
-        const content = `
+        const modalHtml = `
             <div class="modal fade" id="transactionModal" tabindex="-1">
                 <div class="modal-dialog">
                     <div class="modal-content">
@@ -420,7 +419,7 @@ async function viewTransaction(id) {
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        ${transaction.journal_entries.map(entry => `
+                                        ${transaction.entries.map(entry => `
                                             <tr>
                                                 <td>${entry.account.name}</td>
                                                 <td class="text-end numeric">${formatCurrency(entry.debit_amount)}</td>
@@ -439,19 +438,12 @@ async function viewTransaction(id) {
             </div>
         `;
 
-        // Add modal to document
-        const modalContainer = document.createElement('div');
-        modalContainer.innerHTML = content;
-        document.body.appendChild(modalContainer);
+        const modalElement = new DOMParser().parseFromString(modalHtml, 'text/html').body.firstChild;
+        document.body.appendChild(modalElement);
 
-        // Show modal
-        const modal = new bootstrap.Modal(document.getElementById('transactionModal'));
+        const modal = new bootstrap.Modal(modalElement);
+        modalElement.addEventListener('hidden.bs.modal', () => modalElement.remove());
         modal.show();
-
-        // Clean up when modal is hidden
-        document.getElementById('transactionModal').addEventListener('hidden.bs.modal', function () {
-            this.remove();
-        });
     } catch (error) {
         showErrorMessage('Error viewing transaction: ' + error.message);
     }

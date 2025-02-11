@@ -1,5 +1,5 @@
 import { API_URL } from './config.js';
-import { createModal, showModal } from './modal.js';
+import { showSuccessMessage, showErrorMessage } from './modal.js';
 
 export let allCategories = [];
 

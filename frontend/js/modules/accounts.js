@@ -1,6 +1,6 @@
 import { API_URL, formatCurrency } from './config.js';
 import { loadCategories, updateCategoryDropdown } from './categories.js';
-import { showConfirmDialog, showSuccessMessage, showErrorMessage, createModal, showModal } from './modal.js';
+import { showConfirmDialog, showSuccessMessage, showErrorMessage, showFormModal } from './modal.js';
 
 export let allAccounts = [];
 let accountStartingBalances = new Set(); // Track accounts with starting balances
@@ -461,26 +461,20 @@ async function handleStartingBalance(accountId) {
     const account = allAccounts.find(a => a.id === accountId);
     if (!account) return;
 
-    // Create modal content
-    const content = document.createElement('div');
-    content.innerHTML = `
+    const content = `
         <div class="form-group">
             <label for="startingBalance">Starting Balance for ${account.name}:</label>
-            <input type="number" id="startingBalance" step="0.01" required>
+            <input type="number" id="startingBalance" class="form-control" step="0.01" required>
         </div>
     `;
 
-    const modal = createModal('edit', 'Create Starting Balance');
-    const confirmBtn = modal.querySelector('.btn-confirm');
-    
-    // Add event listener for the confirm button
-    confirmBtn.addEventListener('click', async () => {
-        const balanceInput = modal.querySelector('#startingBalance');
+    showFormModal('Create Starting Balance', content, async () => {
+        const balanceInput = document.getElementById('startingBalance');
         const balance = parseFloat(balanceInput.value);
         
         if (isNaN(balance)) {
             showErrorMessage('Please enter a valid number for the starting balance.');
-            return;
+            return false;
         }
 
         try {
@@ -517,11 +511,11 @@ async function handleStartingBalance(accountId) {
 
             showSuccessMessage('Starting balance created successfully!');
             await loadAccounts(); // Reload to update UI
+            return true;
         } catch (error) {
             console.error('Error creating starting balance:', error);
             showErrorMessage('Error creating starting balance: ' + error.message);
+            return false;
         }
     });
-
-    showModal(modal);
 } 

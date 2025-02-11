@@ -1,5 +1,5 @@
 import { loadCategories, createCategory, updateCategory, handleEditCategory, handleDeleteCategory } from '../modules/categories.js';
-import { createModal, showModal } from '../modules/modal.js';
+import { showSuccessMessage, showErrorMessage } from '../modules/modal.js';
 
 document.addEventListener('DOMContentLoaded', async () => {
     try {
