@@ -22,6 +22,16 @@ class TransactionStatus(str, Enum):
     COMPLETED = 'completed'
     VOID = 'void'
 
+class ImportSourceType(str, Enum):
+    CSV = 'csv'
+    TALLY = 'tally'
+    GOCARDLESS = 'gocardless'
+
+class ImportStatus(str, Enum):
+    PENDING = 'pending'
+    PROCESSED = 'processed'
+    ERROR = 'error'
+
 # SQLAlchemy Models
 class AccountCategory(Base):
     __tablename__ = "account_categories"
@@ -50,6 +60,40 @@ class Account(Base):
     category = relationship("AccountCategory", back_populates="accounts")
     journal_entries = relationship("JournalEntry", back_populates="account")
 
+class ImportSource(Base):
+    __tablename__ = "import_sources"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    name = Column(String, nullable=False)
+    type = Column(SQLEnum(ImportSourceType), nullable=False)
+    config = Column(String)  # JSON string for configuration
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, nullable=False, default=func.now())
+    updated_at = Column(DateTime, nullable=False, default=func.now(), onupdate=func.now())
+
+    staged_transactions = relationship("StagedTransaction", back_populates="source")
+
+class StagedTransaction(Base):
+    __tablename__ = "staged_transactions"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    source_id = Column(String(36), ForeignKey("import_sources.id"), nullable=False)
+    external_id = Column(String)  # ID from external system if available
+    transaction_date = Column(Date, nullable=False)
+    description = Column(String, nullable=False)
+    amount = Column(Numeric(15, 2), nullable=False)
+    status = Column(SQLEnum(ImportStatus), nullable=False, default=ImportStatus.PENDING)
+    account_id = Column(String(36), ForeignKey("accounts.id"))  # The account this transaction affects
+    error_message = Column(String)
+    raw_data = Column(String)  # Original data in JSON format
+    created_at = Column(DateTime, nullable=False, default=func.now())
+    updated_at = Column(DateTime, nullable=False, default=func.now(), onupdate=func.now())
+    processed_at = Column(DateTime)
+
+    source = relationship("ImportSource", back_populates="staged_transactions")
+    account = relationship("Account")
+    final_transaction = relationship("Transaction", uselist=False, back_populates="staged_transaction")
+
 class Transaction(Base):
     __tablename__ = "transactions"
 
@@ -58,10 +102,12 @@ class Transaction(Base):
     description = Column(String, nullable=False)
     status = Column(SQLEnum(TransactionStatus), nullable=False, default=TransactionStatus.COMPLETED)
     reference_number = Column(String)
+    staged_transaction_id = Column(String(36), ForeignKey("staged_transactions.id"))
     created_at = Column(DateTime, nullable=False, default=func.now())
     updated_at = Column(DateTime, nullable=False, default=func.now(), onupdate=func.now())
 
     journal_entries = relationship("JournalEntry", back_populates="transaction", cascade="all, delete-orphan")
+    staged_transaction = relationship("StagedTransaction", back_populates="final_transaction")
 
 class JournalEntry(Base):
     __tablename__ = "journal_entries"
@@ -164,4 +210,46 @@ class IncomeStatement(BaseModel):
     expenses: List[dict]
     total_income: Decimal
     total_expenses: Decimal
-    net_income: Decimal 
+    net_income: Decimal
+
+class ImportSourceBase(BaseModel):
+    name: str
+    type: ImportSourceType
+    config: Optional[str] = None
+    is_active: bool = True
+
+class ImportSourceCreate(ImportSourceBase):
+    pass
+
+class ImportSourceResponse(ImportSourceBase):
+    id: str
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+class StagedTransactionBase(BaseModel):
+    source_id: str
+    external_id: Optional[str] = None
+    transaction_date: date
+    description: str
+    amount: Decimal
+    account_id: Optional[str] = None
+    raw_data: Optional[str] = None
+
+class StagedTransactionCreate(StagedTransactionBase):
+    pass
+
+class StagedTransactionResponse(StagedTransactionBase):
+    id: str
+    status: ImportStatus
+    error_message: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+    processed_at: Optional[datetime] = None
+    source: ImportSourceResponse
+    account: Optional[AccountResponse] = None
+
+    class Config:
+        from_attributes = True 

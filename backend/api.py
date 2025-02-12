@@ -7,19 +7,24 @@ journal entries, and generating financial reports.
 """
 
 from datetime import date, datetime
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Any
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from decimal import Decimal
 import os
+import json
 
+from . import models
 from .models import (
     AccountCategoryCreate, AccountCategoryResponse,
     AccountCreate, AccountResponse,
     TransactionCreate, TransactionResponse,
     JournalEntryCreate, JournalEntryResponse,
-    BalanceSheet, IncomeStatement
+    BalanceSheet, IncomeStatement,
+    ImportSourceCreate, ImportSourceResponse,
+    StagedTransactionCreate, StagedTransactionResponse,
+    ImportStatus
 )
 from .services import BookkeepingService
 from .database import get_db, engine, Base
@@ -519,4 +524,197 @@ async def delete_journal_entry(
         if not service.delete_journal_entry(entry_id):
             raise HTTPException(status_code=404, detail="Journal entry not found")
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e)) 
+        raise HTTPException(status_code=400, detail=str(e))
+
+# Import Sources Endpoints
+@app.post("/import-sources/", response_model=ImportSourceResponse, tags=["imports"])
+async def create_import_source(
+    source_data: ImportSourceCreate,
+    db: Session = Depends(get_db)
+):
+    """Create a new import source configuration."""
+    service = BookkeepingService(db)
+    try:
+        return service.create_import_source(source_data)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.get("/import-sources/", response_model=List[ImportSourceResponse], tags=["imports"])
+async def list_import_sources(
+    active_only: bool = True,
+    db: Session = Depends(get_db)
+):
+    """List all import sources."""
+    service = BookkeepingService(db)
+    return service.list_import_sources(active_only=active_only)
+
+@app.get("/import-sources/{source_id}", response_model=ImportSourceResponse, tags=["imports"])
+async def get_import_source(
+    source_id: str,
+    db: Session = Depends(get_db)
+):
+    """Get a specific import source configuration."""
+    service = BookkeepingService(db)
+    source = service.get_import_source(source_id)
+    if not source:
+        raise HTTPException(status_code=404, detail="Import source not found")
+    return source
+
+@app.put("/import-sources/{source_id}", response_model=ImportSourceResponse, tags=["imports"])
+async def update_import_source(
+    source_id: str,
+    source_data: ImportSourceCreate,
+    db: Session = Depends(get_db)
+):
+    """Update an import source configuration."""
+    service = BookkeepingService(db)
+    try:
+        updated_source = service.update_import_source(source_id, source_data)
+        if not updated_source:
+            raise HTTPException(status_code=404, detail="Import source not found")
+        return updated_source
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+# Staged Transactions Endpoints
+@app.post("/staged-transactions/", response_model=StagedTransactionResponse, tags=["imports"])
+async def create_staged_transaction(
+    transaction_data: StagedTransactionCreate,
+    db: Session = Depends(get_db)
+):
+    """Create a new staged transaction."""
+    service = BookkeepingService(db)
+    try:
+        return service.create_staged_transaction(transaction_data)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.get("/staged-transactions/", response_model=List[StagedTransactionResponse], tags=["imports"])
+async def list_staged_transactions(
+    source_id: Optional[str] = None,
+    status: Optional[ImportStatus] = None,
+    start_date: Optional[date] = None,
+    end_date: Optional[date] = None,
+    db: Session = Depends(get_db)
+):
+    """List staged transactions with optional filtering."""
+    service = BookkeepingService(db)
+    return service.list_staged_transactions(
+        source_id=source_id,
+        status=status,
+        start_date=start_date,
+        end_date=end_date
+    )
+
+@app.post("/staged-transactions/{staged_id}/process", response_model=TransactionResponse, tags=["imports"])
+async def process_staged_transaction(
+    staged_id: str,
+    counterpart_account_id: str,
+    db: Session = Depends(get_db)
+):
+    """Process a staged transaction by creating a proper double-entry transaction."""
+    service = BookkeepingService(db)
+    try:
+        return service.process_staged_transaction(staged_id, counterpart_account_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.post("/staged-transactions/bulk-process", tags=["imports"])
+async def bulk_process_staged_transactions(
+    staged_ids: List[str],
+    counterpart_account_id: str,
+    db: Session = Depends(get_db)
+):
+    """Process multiple staged transactions at once."""
+    service = BookkeepingService(db)
+    try:
+        successful, errors = service.bulk_process_staged_transactions(staged_ids, counterpart_account_id)
+        return {
+            "success": len(successful),
+            "errors": len(errors),
+            "error_details": errors
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# Webhook endpoint for Tally
+@app.post("/webhooks/tally", tags=["imports"])
+async def tally_webhook(
+    payload: Dict[str, Any],
+    db: Session = Depends(get_db)
+):
+    """
+    Webhook endpoint for receiving transactions from Tally.
+    Expected fields in the form:
+    - data: date field (transaction date)
+    - mese: string (month reference)
+    - causale: string (transaction description)
+    - categoria: string (transaction category)
+    - conto: string (account name)
+    - importo entrata: float (credit amount, mutually exclusive with importo uscita)
+    - importo uscita: float (debit amount, mutually exclusive with importo entrata)
+    - ricevuta: file attachment (optional)
+    """
+    service = BookkeepingService(db)
+    try:
+        # Find the Tally import source
+        source = service.db.query(models.ImportSource).filter(
+            models.ImportSource.type == models.ImportSourceType.TALLY,
+            models.ImportSource.is_active == True
+        ).first()
+        
+        if not source:
+            raise HTTPException(status_code=400, detail="No active Tally import source configured")
+        
+        # Extract fields from Tally payload
+        fields = {field["label"].lower(): field["value"] for field in payload["data"]["fields"]}
+        
+        # Extract amounts - they are mutually exclusive
+        importo_entrata = float(fields.get("importo entrata", 0))
+        importo_uscita = float(fields.get("importo uscita", 0))
+        
+        # Determine if this is a credit or debit entry
+        is_credit = importo_entrata > 0
+        amount = importo_entrata if is_credit else importo_uscita
+        
+        if amount == 0:
+            raise HTTPException(status_code=400, detail="Transaction must have either a credit or debit amount")
+        
+        # Get receipt file URL if present
+        ricevuta_url = None
+        if "ricevuta" in fields and fields["ricevuta"]:
+            ricevuta_url = fields["ricevuta"][0]["url"] if isinstance(fields["ricevuta"], list) else None
+        
+        # Create staged transaction
+        staged_data = models.StagedTransactionCreate(
+            source_id=source.id,
+            transaction_date=date.fromisoformat(fields["data"]),  # Tally sends ISO format dates
+            description=f"{fields.get('causale', 'No description')} - {fields.get('mese', '')}".strip(' -'),
+            amount=Decimal(str(amount)),
+            raw_data=json.dumps({
+                **fields,
+                "is_credit": is_credit,
+                "receipt_url": ricevuta_url,
+                "category": fields.get("categoria"),
+                "account": fields.get("conto")
+            })
+        )
+        
+        staged_transaction = service.create_staged_transaction(staged_data)
+        
+        return {
+            "status": "success",
+            "message": "Transaction staged successfully",
+            "data": {
+                "id": staged_transaction.id,
+                "amount": amount,
+                "is_credit": is_credit,
+                "description": staged_transaction.description,
+                "date": staged_transaction.transaction_date.isoformat()
+            }
+        }
+        
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)) 

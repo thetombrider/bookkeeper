@@ -12,7 +12,7 @@ It handles all database operations and business rules for:
 
 from datetime import date
 from decimal import Decimal
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Tuple, Any
 from sqlalchemy.orm import Session, joinedload, subqueryload, contains_eager
 from sqlalchemy import func, and_
 
@@ -944,3 +944,173 @@ class BookkeepingService:
                 total_expenses=total_expenses,
                 net_income=net_income
             )
+
+    # Import Sources
+    def create_import_source(self, source_data: models.ImportSourceCreate) -> models.ImportSource:
+        """Create a new import source configuration."""
+        source_dict = source_data.model_dump()
+        db_source = models.ImportSource(**source_dict)
+        
+        try:
+            self.db.add(db_source)
+            self.db.commit()
+            self.db.refresh(db_source)
+            return db_source
+        except Exception as e:
+            self.db.rollback()
+            raise ValueError(f"Error creating import source: {str(e)}")
+
+    def list_import_sources(self, active_only: bool = True) -> List[models.ImportSource]:
+        """List all import sources, optionally filtering for active ones only."""
+        query = self.db.query(models.ImportSource)
+        if active_only:
+            query = query.filter(models.ImportSource.is_active == True)
+        return query.order_by(models.ImportSource.name).all()
+
+    def get_import_source(self, source_id: str) -> Optional[models.ImportSource]:
+        """Get a specific import source by ID."""
+        return self.db.query(models.ImportSource).filter(models.ImportSource.id == source_id).first()
+
+    def update_import_source(self, source_id: str, source_data: models.ImportSourceCreate) -> Optional[models.ImportSource]:
+        """Update an existing import source."""
+        db_source = self.get_import_source(source_id)
+        if not db_source:
+            return None
+
+        source_dict = source_data.model_dump(exclude_unset=True)
+        for key, value in source_dict.items():
+            setattr(db_source, key, value)
+
+        try:
+            self.db.commit()
+            self.db.refresh(db_source)
+            return db_source
+        except Exception as e:
+            self.db.rollback()
+            raise ValueError(f"Error updating import source: {str(e)}")
+
+    # Staged Transactions
+    def create_staged_transaction(self, transaction_data: models.StagedTransactionCreate) -> models.StagedTransaction:
+        """Create a new staged transaction."""
+        transaction_dict = transaction_data.model_dump()
+        db_transaction = models.StagedTransaction(**transaction_dict)
+        
+        try:
+            self.db.add(db_transaction)
+            self.db.commit()
+            self.db.refresh(db_transaction)
+            return db_transaction
+        except Exception as e:
+            self.db.rollback()
+            raise ValueError(f"Error creating staged transaction: {str(e)}")
+
+    def list_staged_transactions(
+        self,
+        source_id: Optional[str] = None,
+        status: Optional[models.ImportStatus] = None,
+        start_date: Optional[date] = None,
+        end_date: Optional[date] = None
+    ) -> List[models.StagedTransaction]:
+        """List staged transactions with optional filtering."""
+        query = self.db.query(models.StagedTransaction)
+        
+        if source_id:
+            query = query.filter(models.StagedTransaction.source_id == source_id)
+        if status:
+            query = query.filter(models.StagedTransaction.status == status)
+        if start_date:
+            query = query.filter(models.StagedTransaction.transaction_date >= start_date)
+        if end_date:
+            query = query.filter(models.StagedTransaction.transaction_date <= end_date)
+            
+        return query.order_by(models.StagedTransaction.transaction_date.desc()).all()
+
+    def process_staged_transaction(self, staged_id: str, counterpart_account_id: str) -> models.Transaction:
+        """
+        Process a staged transaction by creating a proper double-entry transaction.
+        
+        Args:
+            staged_id: ID of the staged transaction to process
+            counterpart_account_id: ID of the account to use as the counterpart
+            
+        Returns:
+            The created transaction
+            
+        Raises:
+            ValueError: If the staged transaction doesn't exist or is invalid
+        """
+        staged = self.db.query(models.StagedTransaction).get(staged_id)
+        if not staged:
+            raise ValueError("Staged transaction not found")
+            
+        if not staged.account_id:
+            raise ValueError("Staged transaction has no primary account assigned")
+            
+        if staged.status == models.ImportStatus.PROCESSED:
+            raise ValueError("Transaction has already been processed")
+            
+        try:
+            # Create the transaction
+            transaction_data = models.TransactionCreate(
+                transaction_date=staged.transaction_date,
+                description=staged.description,
+                entries=[
+                    # Primary entry
+                    models.JournalEntryCreate(
+                        account_id=staged.account_id,
+                        debit_amount=staged.amount if staged.amount > 0 else Decimal('0'),
+                        credit_amount=abs(staged.amount) if staged.amount < 0 else Decimal('0')
+                    ),
+                    # Counterpart entry
+                    models.JournalEntryCreate(
+                        account_id=counterpart_account_id,
+                        debit_amount=abs(staged.amount) if staged.amount < 0 else Decimal('0'),
+                        credit_amount=staged.amount if staged.amount > 0 else Decimal('0')
+                    )
+                ]
+            )
+            
+            # Create the actual transaction
+            transaction = self.create_transaction(transaction_data)
+            
+            # Update staged transaction
+            staged.status = models.ImportStatus.PROCESSED
+            staged.processed_at = func.now()
+            self.db.commit()
+            
+            return transaction
+            
+        except Exception as e:
+            self.db.rollback()
+            staged.status = models.ImportStatus.ERROR
+            staged.error_message = str(e)
+            self.db.commit()
+            raise ValueError(f"Error processing staged transaction: {str(e)}")
+
+    def bulk_process_staged_transactions(
+        self,
+        staged_ids: List[str],
+        counterpart_account_id: str
+    ) -> Tuple[List[models.Transaction], List[Dict[str, Any]]]:
+        """
+        Process multiple staged transactions at once.
+        
+        Returns:
+            Tuple containing:
+            - List of successfully created transactions
+            - List of errors for failed transactions
+        """
+        successful = []
+        errors = []
+        
+        for staged_id in staged_ids:
+            try:
+                transaction = self.process_staged_transaction(staged_id, counterpart_account_id)
+                successful.append(transaction)
+            except Exception as e:
+                errors.append({
+                    'staged_id': staged_id,
+                    'error': str(e)
+                })
+                
+        return successful, errors
