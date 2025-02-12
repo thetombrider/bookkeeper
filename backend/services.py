@@ -1128,3 +1128,53 @@ class BookkeepingService:
                 })
                 
         return successful, errors
+
+    def delete_staged_transaction(self, staged_id: str) -> bool:
+        """Delete a staged transaction.
+        
+        Args:
+            staged_id: ID of the staged transaction to delete
+            
+        Returns:
+            True if the transaction was deleted, False if it wasn't found
+            
+        Raises:
+            ValueError: If there was an error deleting the transaction
+        """
+        staged = self.db.query(models.StagedTransaction).get(staged_id)
+        if not staged:
+            return False
+            
+        try:
+            self.db.delete(staged)
+            self.db.commit()
+            return True
+        except Exception as e:
+            self.db.rollback()
+            raise ValueError(f"Error deleting staged transaction: {str(e)}")
+
+    def bulk_delete_staged_transactions(self, staged_ids: List[str]) -> Tuple[List[str], List[Dict[str, str]]]:
+        """Delete multiple staged transactions.
+        
+        Args:
+            staged_ids: List of staged transaction IDs to delete
+            
+        Returns:
+            Tuple of (successful_ids, errors) where errors is a list of dicts with 'id' and 'error' keys
+            
+        Raises:
+            ValueError: If there was an error deleting the transactions
+        """
+        successful = []
+        errors = []
+        
+        for staged_id in staged_ids:
+            try:
+                if self.delete_staged_transaction(staged_id):
+                    successful.append(staged_id)
+                else:
+                    errors.append({"id": staged_id, "error": "Transaction not found"})
+            except ValueError as e:
+                errors.append({"id": staged_id, "error": str(e)})
+                
+        return successful, errors

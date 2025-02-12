@@ -60,11 +60,14 @@
     <!-- Main Content -->
     <main class="container py-4">
         <section id="staged-transactions">
-            <div class="d-flex justify-content-between align-items-center mb-4">
-                <h2 class="mb-0">Staged Transactions</h2>
-                <div class="d-flex gap-2">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h1 class="h3 mb-0">Staged Transactions</h1>
+                <div class="btn-group">
                     <button class="btn btn-primary" data-action="process-selected" disabled>
-                        <i class="bi bi-check2-all"></i> Process Selected
+                        <i class="bi bi-check2-circle"></i> Process Selected
+                    </button>
+                    <button class="btn btn-danger" data-action="delete-selected" disabled>
+                        <i class="bi bi-trash"></i> Delete Selected
                     </button>
                 </div>
             </div>

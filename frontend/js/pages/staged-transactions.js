@@ -2,6 +2,8 @@ import {
     loadStagedTransactions, 
     processStagedTransaction, 
     bulkProcessTransactions,
+    deleteStagedTransaction,
+    bulkDeleteStagedTransactions,
     toggleTransactionSelection,
     getSelectedTransactions
 } from '../modules/staged-transactions.js';
@@ -59,10 +61,23 @@ function setupEventHandlers() {
             const action = button.dataset.action;
             const id = button.dataset.id;
 
-            if (action === 'process') {
-                await showProcessModal([id]);
-            } else if (action === 'view') {
-                await showTransactionDetails(id);
+            try {
+                switch (action) {
+                    case 'process':
+                        await showProcessModal([id]);
+                        break;
+                    case 'view':
+                        await showTransactionDetails(id);
+                        break;
+                    case 'delete':
+                        if (await showConfirmDialog('Are you sure you want to delete this transaction?')) {
+                            await deleteStagedTransaction(id);
+                        }
+                        break;
+                }
+            } catch (error) {
+                console.error('Error handling action:', error);
+                showErrorMessage(error.message);
             }
         });
     }
@@ -74,6 +89,19 @@ function setupEventHandlers() {
             const selectedIds = getSelectedTransactions();
             if (selectedIds.length > 0) {
                 await showProcessModal(selectedIds);
+            }
+        };
+    }
+
+    // Delete selected button
+    const deleteSelectedBtn = document.querySelector('[data-action="delete-selected"]');
+    if (deleteSelectedBtn) {
+        deleteSelectedBtn.onclick = async () => {
+            const selectedIds = getSelectedTransactions();
+            if (selectedIds.length > 0) {
+                if (await showConfirmDialog(`Are you sure you want to delete ${selectedIds.length} transactions?`)) {
+                    await bulkDeleteStagedTransactions(selectedIds);
+                }
             }
         };
     }
@@ -223,4 +251,14 @@ function getStatusBadgeClass(status) {
 
 function formatStatus(status) {
     return status.charAt(0).toUpperCase() + status.slice(1);
+}
+
+// Update the function that enables/disables buttons based on selection
+function updateSelectionButtons() {
+    const selectedCount = getSelectedTransactions().length;
+    const processBtn = document.querySelector('[data-action="process-selected"]');
+    const deleteBtn = document.querySelector('[data-action="delete-selected"]');
+    
+    if (processBtn) processBtn.disabled = selectedCount === 0;
+    if (deleteBtn) deleteBtn.disabled = selectedCount === 0;
 } 
