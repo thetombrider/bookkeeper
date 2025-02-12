@@ -73,27 +73,6 @@ class ImportSource(Base):
 
     staged_transactions = relationship("StagedTransaction", back_populates="source")
 
-class StagedTransaction(Base):
-    __tablename__ = "staged_transactions"
-
-    id = Column(String(36), primary_key=True, default=lambda: str(uuid4()))
-    source_id = Column(String(36), ForeignKey("import_sources.id"), nullable=False)
-    external_id = Column(String)  # ID from external system if available
-    transaction_date = Column(Date, nullable=False)
-    description = Column(String, nullable=False)
-    amount = Column(Numeric(15, 2), nullable=False)
-    status = Column(SQLEnum(ImportStatus), nullable=False, default=ImportStatus.PENDING)
-    account_id = Column(String(36), ForeignKey("accounts.id"))  # The account this transaction affects
-    error_message = Column(String)
-    raw_data = Column(String)  # Original data in JSON format
-    created_at = Column(DateTime, nullable=False, default=func.now())
-    updated_at = Column(DateTime, nullable=False, default=func.now(), onupdate=func.now())
-    processed_at = Column(DateTime)
-
-    source = relationship("ImportSource", back_populates="staged_transactions")
-    account = relationship("Account")
-    final_transaction = relationship("Transaction", uselist=False, back_populates="staged_transaction")
-
 class Transaction(Base):
     __tablename__ = "transactions"
 
@@ -102,12 +81,12 @@ class Transaction(Base):
     description = Column(String, nullable=False)
     status = Column(SQLEnum(TransactionStatus), nullable=False, default=TransactionStatus.COMPLETED)
     reference_number = Column(String)
-    staged_transaction_id = Column(String(36), ForeignKey("staged_transactions.id"))
+    staged_transaction_id = Column(String(36), ForeignKey("staged_transactions.id"), nullable=True)
     created_at = Column(DateTime, nullable=False, default=func.now())
     updated_at = Column(DateTime, nullable=False, default=func.now(), onupdate=func.now())
 
     journal_entries = relationship("JournalEntry", back_populates="transaction", cascade="all, delete-orphan")
-    staged_transaction = relationship("StagedTransaction", back_populates="final_transaction")
+    staged_transaction = relationship("StagedTransaction", back_populates="final_transaction", foreign_keys=[staged_transaction_id])
 
 class JournalEntry(Base):
     __tablename__ = "journal_entries"
@@ -228,6 +207,27 @@ class ImportSourceResponse(ImportSourceBase):
 
     class Config:
         from_attributes = True
+
+class StagedTransaction(Base):
+    __tablename__ = "staged_transactions"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    source_id = Column(String(36), ForeignKey("import_sources.id"), nullable=False)
+    external_id = Column(String)  # ID from external system if available
+    transaction_date = Column(Date, nullable=False)
+    description = Column(String, nullable=False)
+    amount = Column(Numeric(15, 2), nullable=False)
+    status = Column(SQLEnum(ImportStatus), nullable=False, default=ImportStatus.PENDING)
+    account_id = Column(String(36), ForeignKey("accounts.id"))  # The account this transaction affects
+    error_message = Column(String)
+    raw_data = Column(String)  # Original data in JSON format
+    created_at = Column(DateTime, nullable=False, default=func.now())
+    updated_at = Column(DateTime, nullable=False, default=func.now(), onupdate=func.now())
+    processed_at = Column(DateTime)
+
+    source = relationship("ImportSource", back_populates="staged_transactions")
+    account = relationship("Account")
+    final_transaction = relationship("Transaction", back_populates="staged_transaction", foreign_keys=[Transaction.staged_transaction_id])
 
 class StagedTransactionBase(BaseModel):
     source_id: str
