@@ -5,3 +5,4 @@ dbpw.txt
 migrations/
 __pycache__
 runs/
+.DS_Store

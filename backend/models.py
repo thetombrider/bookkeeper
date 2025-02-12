@@ -72,6 +72,7 @@ class ImportSource(Base):
     updated_at = Column(DateTime, nullable=False, default=func.now(), onupdate=func.now())
 
     staged_transactions = relationship("StagedTransaction", back_populates="source")
+    bank_connections = relationship("BankConnection", back_populates="import_source", cascade="all, delete-orphan")
 
 class Transaction(Base):
     __tablename__ = "transactions"
@@ -250,6 +251,63 @@ class StagedTransactionResponse(StagedTransactionBase):
     processed_at: Optional[datetime] = None
     source: ImportSourceResponse
     account: Optional[AccountResponse] = None
+
+    class Config:
+        from_attributes = True
+
+class BankConnection(Base):
+    __tablename__ = "bank_connections"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    import_source_id = Column(String(36), ForeignKey("import_sources.id"), nullable=False)
+    bank_id = Column(String, nullable=False)  # GoCardless bank ID
+    bank_name = Column(String, nullable=False)
+    requisition_id = Column(String, nullable=False)
+    status = Column(String, nullable=False, default='active')  # active, disconnected
+    created_at = Column(DateTime, nullable=False, default=func.now())
+    updated_at = Column(DateTime, nullable=False, default=func.now(), onupdate=func.now())
+
+    import_source = relationship("ImportSource", back_populates="bank_connections")
+    bank_accounts = relationship("BankAccount", back_populates="connection", cascade="all, delete-orphan")
+
+class BankAccount(Base):
+    __tablename__ = "bank_accounts"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    connection_id = Column(String(36), ForeignKey("bank_connections.id"), nullable=False)
+    account_id = Column(String, nullable=False)  # GoCardless account ID
+    name = Column(String)
+    iban = Column(String)
+    currency = Column(String)
+    status = Column(String, nullable=False, default='active')  # active, disconnected
+    created_at = Column(DateTime, nullable=False, default=func.now())
+    updated_at = Column(DateTime, nullable=False, default=func.now(), onupdate=func.now())
+
+    connection = relationship("BankConnection", back_populates="bank_accounts")
+
+# Add Pydantic models for API responses
+class BankAccountResponse(BaseModel):
+    id: str
+    account_id: str
+    name: Optional[str]
+    iban: Optional[str]
+    currency: Optional[str]
+    status: str
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+class BankConnectionResponse(BaseModel):
+    id: str
+    bank_id: str
+    bank_name: str
+    requisition_id: str
+    status: str
+    created_at: datetime
+    updated_at: datetime
+    bank_accounts: List[BankAccountResponse]
 
     class Config:
         from_attributes = True 

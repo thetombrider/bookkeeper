@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Accounts - Bookkeeper</title>
+    <title>Integrations - Bookkeeper</title>
     
     <!-- Inter Font -->
     <link rel="preconnect" href="https://rsms.me/">
@@ -41,13 +41,13 @@
                         <a class="nav-link" href="/categories.html">Categories</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link active" href="/accounts.html" aria-current="page">Accounts</a>
+                        <a class="nav-link" href="/accounts.html">Accounts</a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link" href="/transactions.html">Transactions</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="/integrations.html">Integrations</a>
+                        <a class="nav-link active" href="/integrations.html" aria-current="page">Integrations</a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link" href="/staged-transactions.html">Staged Transactions</a>
@@ -59,51 +59,53 @@
 
     <!-- Main Content -->
     <main class="container py-4">
-        <section id="accounts">
-            <!-- Header with Title and Actions -->
+        <section id="integrations">
             <div class="d-flex justify-content-between align-items-center mb-4">
-                <h2 class="mb-0">Accounts</h2>
-                <button class="btn btn-primary" data-action="add-account">
-                    <i class="bi bi-plus-lg"></i> Add Account
-                </button>
+                <h2 class="mb-0">Integrations</h2>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-primary" data-action="add-integration">
+                        <i class="bi bi-plus-lg"></i> Add Integration
+                    </button>
+                </div>
             </div>
 
-            <!-- Account Form -->
-            <div id="accountForm" class="card mb-4" style="display: none;">
+            <!-- Integration Form -->
+            <div id="integrationForm" class="card mb-4" style="display: none;">
                 <div class="card-header">
-                    <h3 class="card-title mb-0">Add Account</h3>
+                    <h3 class="card-title mb-0">Add Integration</h3>
                 </div>
                 <div class="card-body">
-                    <form id="accountEditForm">
+                    <form id="integrationEditForm">
                         <div class="row g-3">
                             <div class="col-md-6">
-                                <label for="accountName" class="form-label">Name</label>
-                                <input type="text" id="accountName" class="form-control" required>
+                                <label for="integrationName" class="form-label">Name</label>
+                                <input type="text" id="integrationName" class="form-control" required>
                             </div>
                             <div class="col-md-6">
-                                <label for="accountType" class="form-label">Type</label>
-                                <select id="accountType" class="form-select" required>
+                                <label for="integrationType" class="form-label">Type</label>
+                                <select id="integrationType" class="form-select" required>
                                     <option value="">Select type...</option>
-                                    <option value="asset">Asset</option>
-                                    <option value="liability">Liability</option>
-                                    <option value="equity">Equity</option>
-                                    <option value="income">Income</option>
-                                    <option value="expense">Expense</option>
+                                    <option value="tally">Tally</option>
+                                    <option value="gocardless">GoCardless</option>
+                                    <option value="csv">CSV</option>
                                 </select>
                             </div>
-                            <div class="col-md-6">
-                                <label for="accountCategory" class="form-label">Category</label>
-                                <select id="accountCategory" class="form-select" required disabled>
-                                    <option value="">Select type first...</option>
-                                </select>
+                            
+                            <!-- Dynamic Configuration Fields -->
+                            <div id="configFields" class="col-12">
+                                <!-- Fields will be dynamically added based on integration type -->
                             </div>
+
                             <div class="col-12">
-                                <label for="accountDescription" class="form-label">Description</label>
-                                <textarea id="accountDescription" class="form-control" rows="2"></textarea>
+                                <div class="form-check">
+                                    <input type="checkbox" id="integrationActive" class="form-check-input" checked>
+                                    <label class="form-check-label" for="integrationActive">Active</label>
+                                </div>
                             </div>
+
                             <div class="col-12">
                                 <div class="d-flex gap-2">
-                                    <button type="submit" class="btn btn-primary">Create Account</button>
+                                    <button type="submit" class="btn btn-primary">Create Integration</button>
                                     <button type="button" class="btn btn-light" data-action="cancel-edit">Cancel</button>
                                 </div>
                             </div>
@@ -112,11 +114,24 @@
                 </div>
             </div>
 
-            <!-- Accounts List -->
+            <!-- Integrations List -->
             <div class="card">
                 <div class="card-body p-0">
-                    <div id="accountsList" class="table-responsive">
-                        <!-- Accounts will be loaded here -->
+                    <div id="integrationsList" class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Type</th>
+                                    <th>Status</th>
+                                    <th>Last Sync</th>
+                                    <th class="text-end">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- Integrations will be loaded here -->
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             </div>
@@ -126,6 +141,6 @@
     <!-- Bootstrap Bundle with Popper -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <!-- Page Scripts -->
-    <script type="module" src="/js/pages/accounts.js"></script>
+    <script type="module" src="/js/pages/integrations.js"></script>
 </body>
 </html> 

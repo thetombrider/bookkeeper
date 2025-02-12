@@ -7,13 +7,15 @@ journal entries, and generating financial reports.
 """
 
 from datetime import date, datetime
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Tuple
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from decimal import Decimal
 import os
 import json
+from uuid import uuid4
+from nordigen import NordigenClient
 
 from . import models
 from .models import (
@@ -32,6 +34,91 @@ from .database import get_db, engine, Base
 # Initialize database tables
 Base.metadata.create_all(bind=engine)
 
+# Helper functions for GoCardless integration
+def get_bank_transactions(account, start_date=None, end_date=None):
+    """
+    Retrieve transactions for a specific account.
+    """
+    try:
+        transactions = account.get_transactions()
+        if not isinstance(transactions, dict) or 'transactions' not in transactions:
+            return []
+        
+        booked = transactions.get('transactions', {}).get('booked', [])
+        pending = transactions.get('transactions', {}).get('pending', [])
+        
+        return booked + pending
+    except Exception as e:
+        print(f"Error retrieving transactions: {e}")
+        return []
+
+def get_bank_accounts(client, institution_id):
+    """
+    Get accounts for a specific bank.
+    """
+    try:
+        requisition = client.requisition.get_requisition_by_id(
+            requisition_id=institution_id
+        )
+        
+        if not requisition or not requisition.get('accounts', []):
+            return []
+        
+        accounts = []
+        for account_id in requisition['accounts']:
+            try:
+                account = client.account_api(account_id)
+                details = account.get_details()
+                account_info = details.get('account', {})
+                
+                accounts.append({
+                    'id': account_id,
+                    'name': account_info.get('ownerName', 'Unknown'),
+                    'iban': account_info.get('iban', 'Not available'),
+                    'currency': account_info.get('currency', 'Unknown'),
+                    'product': account_info.get('product', ''),
+                    'account_api': account
+                })
+            except Exception as e:
+                print(f"Error processing account {account_id}: {str(e)}")
+                continue
+                
+        return accounts
+    except Exception as e:
+        print(f"Error retrieving accounts: {e}")
+        return []
+
+def list_connected_banks(client):
+    """
+    List banks that have active requisitions.
+    """
+    try:
+        # Get all requisitions for this client
+        requisitions = client.requisition.get_requisitions()
+        
+        if not requisitions:
+            return []
+            
+        banks = []
+        for req in requisitions:
+            if req.get('status') == 'LN':  # Only include linked/active requisitions
+                try:
+                    institution = client.institution.get_institution_by_id(req['institution_id'])
+                    if institution:
+                        banks.append({
+                            'id': institution['id'],
+                            'name': institution['name'],
+                            'requisition_id': req['id']
+                        })
+                except Exception as e:
+                    print(f"Error processing bank {req['institution_id']}: {str(e)}")
+                    continue
+                    
+        return banks
+    except Exception as e:
+        print(f"Error listing connected banks: {e}")
+        return []
+
 # Create FastAPI application instance
 app = FastAPI(title="Bookkeeper")
 
@@ -47,6 +134,9 @@ app.add_middleware(
 # Create runs directory if it doesn't exist
 RUNS_DIR = "runs"
 os.makedirs(RUNS_DIR, exist_ok=True)
+
+# Initialize service
+service = BookkeepingService(None)  # DB session will be injected per request
 
 # Journal Entries Endpoints
 
@@ -717,4 +807,326 @@ async def tally_webhook(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/import-sources/{source_id}/sync-gocardless", tags=["imports"])
+async def sync_gocardless(
+    source_id: str,
+    db: Session = Depends(get_db)
+):
+    """
+    Sync transactions from GoCardless for a specific import source.
+    The source must be of type 'gocardless' and have valid configuration.
+    """
+    try:
+        # Get the import source
+        source = db.query(models.ImportSource).filter(
+            models.ImportSource.id == source_id,
+            models.ImportSource.type == models.ImportSourceType.GOCARDLESS
+        ).first()
+        
+        if not source:
+            raise HTTPException(status_code=404, detail="GoCardless import source not found")
+        
+        if not source.is_active:
+            raise HTTPException(status_code=400, detail="Import source is not active")
+        
+        # Parse the config
+        config = json.loads(source.config)
+        if not config.get('secretId') or not config.get('secretKey'):
+            raise HTTPException(
+                status_code=400, 
+                detail="Missing GoCardless credentials in configuration"
+            )
+        
+        # Initialize GoCardless client
+        client = NordigenClient(
+            secret_id=config['secretId'],
+            secret_key=config['secretKey']
+        )
+
+        # Initialize tokens
+        client.generate_token()
+        
+        # Get transactions from all connected accounts
+        staged_transactions = []
+        
+        # Get list of connected banks
+        banks = list_connected_banks(client)
+        
+        for bank in banks:
+            accounts = get_bank_accounts(client, bank['id'])
+            for account in accounts:
+                transactions = get_bank_transactions(account)
+                
+                # Convert each transaction to a staged transaction
+                for tx in transactions:
+                    staged_data = models.StagedTransactionCreate(
+                        source_id=source_id,
+                        external_id=tx.get('transactionId'),
+                        transaction_date=datetime.strptime(tx['bookingDate'], '%Y-%m-%d').date(),
+                        description=tx.get('remittanceInformationUnstructured', 'No description'),
+                        amount=Decimal(tx['transactionAmount']['amount']),
+                        account_id=None,  # Will be set during processing
+                        raw_data=json.dumps(tx)
+                    )
+                    
+                    # Create staged transaction
+                    service = BookkeepingService(db)
+                    staged_tx = service.create_staged_transaction(staged_data)
+                    staged_transactions.append(staged_tx)
+        
+        return {
+            "message": f"Successfully synced {len(staged_transactions)} transactions from GoCardless",
+            "transactions_count": len(staged_transactions)
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/import-sources/{source_id}/gocardless-banks", tags=["imports"])
+async def list_gocardless_banks(
+    source_id: str,
+    country: str = 'IT',
+    db: Session = Depends(get_db)
+):
+    """
+    List available banks for GoCardless integration.
+    """
+    try:
+        # Get the source
+        source = db.query(models.ImportSource).filter(
+            models.ImportSource.id == source_id,
+            models.ImportSource.type == models.ImportSourceType.GOCARDLESS
+        ).first()
+        
+        if not source:
+            raise HTTPException(status_code=404, detail="GoCardless import source not found")
+        
+        if not source.is_active:
+            raise HTTPException(status_code=400, detail="Import source is not active")
+        
+        # Parse the config
+        config = json.loads(source.config)
+        if not config.get('secretId') or not config.get('secretKey'):
+            raise HTTPException(
+                status_code=400, 
+                detail="Missing GoCardless credentials in configuration"
+            )
+        
+        # Initialize GoCardless client
+        client = NordigenClient(
+            secret_id=config['secretId'],
+            secret_key=config['secretKey']
+        )
+        
+        # Generate new tokens
+        token_data = client.generate_token()
+        if not token_data or 'access' not in token_data:
+            raise HTTPException(status_code=401, detail="Failed to generate access token")
+        
+        # Set the access token
+        client.token = token_data['access']
+        
+        # Get institutions for the specified country
+        try:
+            institutions = client.institution.get_institutions(country)
+            return institutions
+        except Exception as e:
+            if hasattr(e, 'response'):
+                raise HTTPException(
+                    status_code=e.response.status_code,
+                    detail=e.response.json()
+                )
+            raise HTTPException(status_code=500, detail=str(e))
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/import-sources/{source_id}/gocardless-requisition", tags=["imports"])
+async def create_gocardless_requisition(
+    source_id: str,
+    request: Dict[str, Any],
+    db: Session = Depends(get_db)
+):
+    """
+    Create a new requisition for bank access and store connection info locally.
+    """
+    try:
+        bank_id = request.get('bank_id')
+        if not bank_id:
+            raise HTTPException(status_code=422, detail="bank_id is required")
+            
+        # Get the source
+        source = db.query(models.ImportSource).filter(
+            models.ImportSource.id == source_id,
+            models.ImportSource.type == models.ImportSourceType.GOCARDLESS
+        ).first()
+        
+        if not source:
+            raise HTTPException(status_code=404, detail="GoCardless import source not found")
+        
+        # Initialize GoCardless client and create requisition
+        config = json.loads(source.config)
+        client = NordigenClient(
+            secret_id=config['secretId'],
+            secret_key=config['secretKey']
+        )
+        
+        # Generate new tokens
+        token_data = client.generate_token()
+        client.token = token_data['access']
+        
+        # Get bank details
+        institution = client.institution.get_institution_by_id(bank_id)
+        
+        # Initialize session with the bank
+        init = client.initialize_session(
+            institution_id=bank_id,
+            redirect_uri="https://gocardless.com",
+            reference_id=str(uuid4())
+        )
+        
+        # Create local bank connection record
+        bank_connection = models.BankConnection(
+            import_source_id=source_id,
+            bank_id=bank_id,
+            bank_name=institution['name'],
+            requisition_id=init.requisition_id,
+            status='active'
+        )
+        db.add(bank_connection)
+        db.commit()
+            
+        return {"link": init.link, "requisition_id": init.requisition_id}
+            
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/import-sources/{source_id}/gocardless-accounts", tags=["imports"])
+async def list_gocardless_accounts(
+    source_id: str,
+    db: Session = Depends(get_db)
+):
+    """
+    List bank accounts from local database, update if needed.
+    """
+    try:
+        # Get the source and its bank connections
+        source = db.query(models.ImportSource).filter(
+            models.ImportSource.id == source_id,
+            models.ImportSource.type == models.ImportSourceType.GOCARDLESS
+        ).first()
+        
+        if not source:
+            raise HTTPException(status_code=404, detail="GoCardless import source not found")
+        
+        # Get active bank connections and their accounts
+        connections = db.query(models.BankConnection).filter(
+            models.BankConnection.import_source_id == source_id,
+            models.BankConnection.status == 'active'
+        ).all()
+        
+        # If we have connections, return the stored accounts
+        accounts = []
+        for conn in connections:
+            accounts.extend([{
+                'id': acc.id,
+                'account_id': acc.account_id,
+                'name': acc.name,
+                'iban': acc.iban,
+                'currency': acc.currency,
+                'status': acc.status,
+                'bank_name': conn.bank_name,
+                'requisition_id': conn.requisition_id
+            } for acc in conn.bank_accounts if acc.status == 'active'])
+        
+        # If no accounts found, try to fetch and store them
+        if not accounts:
+            config = json.loads(source.config)
+            client = NordigenClient(
+                secret_id=config['secretId'],
+                secret_key=config['secretKey']
+            )
+            client.token = client.generate_token()['access']
+            
+            for conn in connections:
+                try:
+                    requisition = client.requisition.get_requisition_by_id(
+                        requisition_id=conn.requisition_id
+                    )
+                    
+                    if requisition.get('status') == 'LN':
+                        for account_id in requisition['accounts']:
+                            account = client.account_api(account_id)
+                            details = account.get_details()
+                            account_info = details.get('account', {})
+                            
+                            # Create or update bank account record
+                            bank_account = models.BankAccount(
+                                connection_id=conn.id,
+                                account_id=account_id,
+                                name=account_info.get('ownerName'),
+                                iban=account_info.get('iban'),
+                                currency=account_info.get('currency'),
+                                status='active'
+                            )
+                            db.add(bank_account)
+                            
+                            accounts.append({
+                                'id': bank_account.id,
+                                'account_id': account_id,
+                                'name': account_info.get('ownerName'),
+                                'iban': account_info.get('iban'),
+                                'currency': account_info.get('currency'),
+                                'status': 'active',
+                                'bank_name': conn.bank_name,
+                                'requisition_id': conn.requisition_id
+                            })
+                    else:
+                        conn.status = 'disconnected'
+                except Exception as e:
+                    print(f"Error processing connection {conn.id}: {str(e)}")
+                    conn.status = 'disconnected'
+                    continue
+            
+            db.commit()
+            
+        return accounts
+            
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/import-sources/{source_id}/gocardless-requisition/{requisition_id}", tags=["imports"])
+async def delete_gocardless_requisition(
+    source_id: str,
+    requisition_id: str,
+    db: Session = Depends(get_db)
+):
+    """
+    Mark a bank connection as disconnected.
+    """
+    try:
+        connection = db.query(models.BankConnection).filter(
+            models.BankConnection.import_source_id == source_id,
+            models.BankConnection.requisition_id == requisition_id
+        ).first()
+        
+        if not connection:
+            raise HTTPException(status_code=404, detail="Bank connection not found")
+        
+        # Mark connection and its accounts as disconnected
+        connection.status = 'disconnected'
+        for account in connection.bank_accounts:
+            account.status = 'disconnected'
+        
+        db.commit()
+        return {"status": "success"}
+            
+    except Exception as e:
+        db.rollback()
         raise HTTPException(status_code=500, detail=str(e)) 
