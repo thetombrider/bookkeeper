@@ -190,7 +190,7 @@ export async function bulkDeleteStagedTransactions(transactionIds) {
                 'Content-Type': 'application/json',
                 'Accept': 'application/json'
             },
-            body: JSON.stringify(transactionIds)
+            body: JSON.stringify({ staged_ids: transactionIds })
         });
 
         if (!response.ok) {

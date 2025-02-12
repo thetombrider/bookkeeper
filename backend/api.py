@@ -740,6 +740,29 @@ async def bulk_process_staged_transactions(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.delete("/staged-transactions/bulk-delete", tags=["imports"])
+async def bulk_delete_staged_transactions(
+    request: models.BulkDeleteRequest,
+    db: Session = Depends(get_db)
+):
+    """Delete multiple staged transactions at once."""
+    service = BookkeepingService(db)
+    try:
+        successful, errors = service.bulk_delete_staged_transactions(request.staged_ids)
+        if errors:
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "message": "Some transactions could not be deleted",
+                    "success": len(successful),
+                    "errors": len(errors),
+                    "error_details": errors
+                }
+            )
+        return {"message": "All transactions deleted successfully", "count": len(successful)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.delete("/staged-transactions/{staged_id}", status_code=204, tags=["imports"])
 async def delete_staged_transaction(
     staged_id: str,
@@ -752,24 +775,6 @@ async def delete_staged_transaction(
             raise HTTPException(status_code=404, detail="Staged transaction not found")
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
-
-@app.delete("/staged-transactions/bulk-delete", status_code=204, tags=["imports"])
-async def bulk_delete_staged_transactions(
-    staged_ids: List[str],
-    db: Session = Depends(get_db)
-):
-    """Delete multiple staged transactions at once."""
-    service = BookkeepingService(db)
-    try:
-        successful, errors = service.bulk_delete_staged_transactions(staged_ids)
-        if errors:
-            return {
-                "success": len(successful),
-                "errors": len(errors),
-                "error_details": errors
-            }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
 
 # Webhook endpoint for Tally
 @app.post("/webhooks/tally", tags=["imports"])

@@ -310,4 +310,10 @@ class BankConnectionResponse(BaseModel):
     bank_accounts: List[BankAccountResponse]
 
     class Config:
+        from_attributes = True
+
+class BulkDeleteRequest(BaseModel):
+    staged_ids: List[str]
+
+    class Config:
         from_attributes = True 
