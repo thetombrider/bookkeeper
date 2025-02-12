@@ -97,7 +97,7 @@ export async function updateTransactionsList() {
         updateSelectionButtons();
     } catch (error) {
         console.error('Error updating staged transactions list:', error);
-        showError('Failed to update staged transactions list');
+        showErrorMessage('Failed to update staged transactions list');
     }
 }
 
@@ -221,18 +221,20 @@ export function toggleTransactionSelection(transactionId, selected) {
     } else {
         selectedTransactions.delete(transactionId);
     }
-    updateProcessSelectedButton();
+    updateSelectionButtons();
 }
 
 export function getSelectedTransactions() {
     return Array.from(selectedTransactions);
 }
 
-function updateProcessSelectedButton() {
-    const btn = document.querySelector('[data-action="process-selected"]');
-    if (btn) {
-        btn.disabled = selectedTransactions.size === 0;
-    }
+export function updateSelectionButtons() {
+    const selectedCount = getSelectedTransactions().length;
+    const processBtn = document.querySelector('[data-action="process-selected"]');
+    const deleteBtn = document.querySelector('[data-action="delete-selected"]');
+    
+    if (processBtn) processBtn.disabled = selectedCount === 0;
+    if (deleteBtn) deleteBtn.disabled = selectedCount === 0;
 }
 
 function getStatusBadgeClass(status) {

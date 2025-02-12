@@ -5,7 +5,8 @@ import {
     deleteStagedTransaction,
     bulkDeleteStagedTransactions,
     toggleTransactionSelection,
-    getSelectedTransactions
+    getSelectedTransactions,
+    updateSelectionButtons
 } from '../modules/staged-transactions.js';
 import { loadAccounts } from '../modules/accounts.js';
 import { showSuccessMessage, showErrorMessage, showConfirmDialog } from '../modules/modal.js';
@@ -251,14 +252,4 @@ function getStatusBadgeClass(status) {
 
 function formatStatus(status) {
     return status.charAt(0).toUpperCase() + status.slice(1);
-}
-
-// Update the function that enables/disables buttons based on selection
-function updateSelectionButtons() {
-    const selectedCount = getSelectedTransactions().length;
-    const processBtn = document.querySelector('[data-action="process-selected"]');
-    const deleteBtn = document.querySelector('[data-action="delete-selected"]');
-    
-    if (processBtn) processBtn.disabled = selectedCount === 0;
-    if (deleteBtn) deleteBtn.disabled = selectedCount === 0;
 } 
