@@ -398,7 +398,7 @@ const bankSelectionModal = `
 document.body.insertAdjacentHTML('beforeend', bankSelectionModal);
 
 // Bank selection and setup functionality
-async function handleSetup(sourceId) {
+export async function handleSetup(sourceId) {
     try {
         // Show loading state
         showLoading();
@@ -480,7 +480,7 @@ async function handleSetup(sourceId) {
 }
 
 // Function to handle bank selection
-async function selectBank(sourceId, bankId) {
+export async function selectBank(sourceId, bankId) {
     try {
         showLoading();
         

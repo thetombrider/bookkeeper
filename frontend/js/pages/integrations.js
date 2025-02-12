@@ -5,8 +5,7 @@ import {
     deleteIntegration, 
     syncIntegration,
     updateConfigFields,
-    editIntegration,
-    handleSetup
+    editIntegration
 } from '../modules/integrations.js';
 import { showSuccessMessage, showErrorMessage, showConfirmDialog } from '../modules/modal.js';
 
@@ -144,9 +143,6 @@ function setupListHandlers() {
                 case 'sync':
                     const type = button.dataset.type;
                     await syncIntegration(id, type);
-                    break;
-                case 'setup':
-                    await handleSetup(id);
                     break;
             }
         } catch (error) {
