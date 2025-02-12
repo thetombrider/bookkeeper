@@ -139,10 +139,10 @@ async function updateIntegrationsList(integrations) {
                         <button class="btn btn-sm btn-outline-primary" data-action="setup" data-id="${integration.id}">
                             <i class="bi bi-bank"></i> Setup
                         </button>
+                        <button class="btn btn-sm btn-outline-primary" data-action="sync" data-id="${integration.id}">
+                            <i class="bi bi-arrow-repeat"></i> Sync
+                        </button>
                     ` : ''}
-                    <button class="btn btn-sm btn-outline-primary" data-action="sync" data-id="${integration.id}">
-                        <i class="bi bi-arrow-repeat"></i> Sync
-                    </button>
                     <button class="btn btn-sm btn-outline-secondary" data-action="edit" data-id="${integration.id}">
                         <i class="bi bi-pencil"></i> Edit
                     </button>
