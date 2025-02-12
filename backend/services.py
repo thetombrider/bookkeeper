@@ -989,6 +989,20 @@ class BookkeepingService:
             self.db.rollback()
             raise ValueError(f"Error updating import source: {str(e)}")
 
+    def delete_import_source(self, source_id: str) -> bool:
+        """Delete an import source and all its related data."""
+        db_source = self.get_import_source(source_id)
+        if not db_source:
+            return False
+
+        try:
+            self.db.delete(db_source)
+            self.db.commit()
+            return True
+        except Exception as e:
+            self.db.rollback()
+            raise ValueError(f"Error deleting import source: {str(e)}")
+
     # Staged Transactions
     def create_staged_transaction(self, transaction_data: models.StagedTransactionCreate) -> models.StagedTransaction:
         """Create a new staged transaction."""

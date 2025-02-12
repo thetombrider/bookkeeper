@@ -4,7 +4,9 @@ import {
     updateIntegration, 
     deleteIntegration, 
     syncIntegration,
-    updateConfigFields
+    updateConfigFields,
+    editIntegration,
+    handleSetup
 } from '../modules/integrations.js';
 import { showSuccessMessage, showErrorMessage, showConfirmDialog } from '../modules/modal.js';
 
@@ -31,7 +33,17 @@ function setupFormHandlers() {
     if (addBtn) {
         addBtn.onclick = () => {
             const form = document.getElementById('integrationForm');
-            if (form) {
+            const editForm = document.getElementById('integrationEditForm');
+            if (form && editForm) {
+                // Reset form state
+                editForm.reset();
+                editForm.dataset.editId = '';
+                document.getElementById('integrationType').disabled = false;
+                document.getElementById('configFields').innerHTML = '';
+                form.querySelector('.card-title').textContent = 'Add Integration';
+                editForm.querySelector('button[type="submit"]').textContent = 'Create Integration';
+                
+                // Show form
                 form.style.display = 'block';
                 form.scrollIntoView({ behavior: 'smooth', block: 'start' });
             }
@@ -68,17 +80,21 @@ function setupFormHandlers() {
                 // Convert config to JSON string
                 formData.config = JSON.stringify(formData.config);
 
-                if (form.dataset.editId) {
-                    await updateIntegration(form.dataset.editId, formData);
+                const editId = form.dataset.editId;
+                if (editId) {
+                    await updateIntegration(editId, formData);
+                    showSuccessMessage('Integration updated successfully');
                 } else {
                     await createIntegration(formData);
+                    showSuccessMessage('Integration created successfully');
                 }
 
                 // Reset and hide form
                 form.reset();
                 form.dataset.editId = '';
-                document.getElementById('integrationForm').style.display = 'none';
+                document.getElementById('integrationType').disabled = false;
                 document.getElementById('configFields').innerHTML = '';
+                document.getElementById('integrationForm').style.display = 'none';
 
             } catch (error) {
                 console.error('Error handling integration:', error);
@@ -96,8 +112,9 @@ function setupFormHandlers() {
             if (form && formContainer) {
                 form.reset();
                 form.dataset.editId = '';
-                formContainer.style.display = 'none';
+                document.getElementById('integrationType').disabled = false;
                 document.getElementById('configFields').innerHTML = '';
+                formContainer.style.display = 'none';
             }
         };
     }
@@ -117,13 +134,19 @@ function setupListHandlers() {
         try {
             switch (action) {
                 case 'edit':
-                    await handleEdit(id);
+                    await editIntegration(id);
                     break;
                 case 'delete':
-                    await handleDelete(id);
+                    if (await showConfirmDialog('Are you sure you want to delete this integration?')) {
+                        await deleteIntegration(id);
+                    }
                     break;
                 case 'sync':
-                    await handleSync(id);
+                    const type = button.dataset.type;
+                    await syncIntegration(id, type);
+                    break;
+                case 'setup':
+                    await handleSetup(id);
                     break;
             }
         } catch (error) {

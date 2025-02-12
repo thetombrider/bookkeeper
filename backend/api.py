@@ -666,6 +666,19 @@ async def update_import_source(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+@app.delete("/import-sources/{source_id}", status_code=204, tags=["imports"])
+async def delete_import_source(
+    source_id: str,
+    db: Session = Depends(get_db)
+):
+    """Delete an import source configuration."""
+    service = BookkeepingService(db)
+    try:
+        if not service.delete_import_source(source_id):
+            raise HTTPException(status_code=404, detail="Import source not found")
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
 # Staged Transactions Endpoints
 @app.post("/staged-transactions/", response_model=StagedTransactionResponse, tags=["imports"])
 async def create_staged_transaction(
