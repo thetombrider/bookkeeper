@@ -285,16 +285,24 @@ class BankAccount(Base):
 
     connection = relationship("BankConnection", back_populates="bank_accounts")
 
-# Add Pydantic models for API responses
-class BankAccountResponse(BaseModel):
+# Add simplified response models to break circular dependencies
+class BankAccountBrief(BaseModel):
     id: str
     account_id: str
     name: Optional[str]
     iban: Optional[str]
     currency: Optional[str]
     status: str
-    created_at: datetime
-    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+class BankConnectionBrief(BaseModel):
+    id: str
+    bank_id: str
+    bank_name: str
+    requisition_id: str
+    status: str
 
     class Config:
         from_attributes = True
@@ -307,10 +315,26 @@ class BankConnectionResponse(BaseModel):
     status: str
     created_at: datetime
     updated_at: datetime
-    bank_accounts: List[BankAccountResponse]
+    bank_accounts: List[BankAccountBrief]
 
     class Config:
         from_attributes = True
+
+class BankAccountResponse(BaseModel):
+    id: str
+    account_id: str
+    name: Optional[str]
+    iban: Optional[str]
+    currency: Optional[str]
+    status: str
+    created_at: datetime
+    updated_at: datetime
+    connection: Optional[BankConnectionBrief] = None
+
+    class Config:
+        from_attributes = True
+
+BankConnectionResponse.model_rebuild()
 
 class BulkDeleteRequest(BaseModel):
     staged_ids: List[str]

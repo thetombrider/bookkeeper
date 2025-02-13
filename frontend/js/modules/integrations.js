@@ -6,7 +6,7 @@ export let allIntegrations = [];
 // Utility functions for loading state
 let loadingOverlay;
 
-function showLoading() {
+export function showLoading() {
     if (!loadingOverlay) {
         loadingOverlay = document.createElement('div');
         loadingOverlay.className = 'loading-overlay';
@@ -41,7 +41,7 @@ function showLoading() {
     loadingOverlay.style.display = 'flex';
 }
 
-function hideLoading() {
+export function hideLoading() {
     if (loadingOverlay) {
         loadingOverlay.style.display = 'none';
     }
@@ -263,17 +263,33 @@ document.head.appendChild(style);
 
 export async function loadConnectedBanks(integration) {
     try {
-        // First get the bank connections
-        const response = await fetch(`${API_URL}/import-sources/${integration.id}/gocardless-accounts`);
+        // First try to get bank connections from the database
+        const response = await fetch(`${API_URL}/import-sources/${integration.id}/gocardless-accounts?use_cached=true`);
         if (!response.ok) {
-            throw new Error('Failed to fetch connected banks');
+            throw new Error('Failed to fetch bank connections');
         }
+        
         const accounts = await response.json();
-        console.log('Raw accounts data:', accounts);
-        return accounts;
+        console.log('Bank accounts from database:', accounts);
+        
+        // If we have accounts in the database, return them
+        if (accounts && accounts.length > 0) {
+            return accounts;
+        }
+        
+        // If no accounts in database, try to fetch from API
+        console.log('No accounts found in database, fetching from API...');
+        const apiResponse = await fetch(`${API_URL}/import-sources/${integration.id}/gocardless-accounts?refresh=true`);
+        if (!apiResponse.ok) {
+            throw new Error('Failed to fetch accounts from API');
+        }
+        
+        const apiAccounts = await apiResponse.json();
+        console.log('Bank accounts from API:', apiAccounts);
+        return apiAccounts;
     } catch (error) {
         console.error('Error loading connected banks:', error);
-        throw error;
+        return [];
     }
 }
 

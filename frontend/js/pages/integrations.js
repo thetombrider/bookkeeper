@@ -6,12 +6,15 @@ import {
     syncIntegration,
     updateConfigFields,
     editIntegration,
-    loadConnectedBanks
+    loadConnectedBanks,
+    showLoading,
+    hideLoading
 } from '../modules/integrations.js';
 import { showSuccessMessage, showErrorMessage, showConfirmDialog } from '../modules/modal.js';
 import { API_URL } from '../modules/config.js';
 
-document.addEventListener('DOMContentLoaded', async () => {
+// Initialize the page
+async function initializePage() {
     try {
         // Check for bank connection redirect
         const urlParams = new URLSearchParams(window.location.search);
@@ -60,7 +63,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         console.error('Error initializing page:', error);
         showErrorMessage('Error loading integrations. Please refresh the page.');
     }
-});
+}
+
+// Start initialization when DOM is ready
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initializePage);
+} else {
+    initializePage();
+}
 
 function setupFormHandlers() {
     // Add Integration button

@@ -6,7 +6,7 @@ It provides endpoints for managing account categories, accounts, transactions,
 journal entries, and generating financial reports.
 """
 
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import List, Optional, Dict, Any, Tuple
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
@@ -16,6 +16,8 @@ import os
 import json
 from uuid import uuid4
 from nordigen import NordigenClient
+import time
+from collections import defaultdict
 
 from . import models
 from .models import (
@@ -34,22 +36,92 @@ from .database import get_db, engine, Base
 # Initialize database tables
 Base.metadata.create_all(bind=engine)
 
-# Helper functions for GoCardless integration
-def get_bank_transactions(account, start_date=None, end_date=None):
+# Add rate limiting tracking
+_api_call_counts = defaultdict(list)
+_MAX_CALLS_PER_DAY = 10
+_CALLS_RESET_AFTER = timedelta(days=1)
+
+def check_rate_limit(resource_key):
+    """Check if we've exceeded rate limits for a resource."""
+    global _api_call_counts
+    
+    now = datetime.now()
+    # Clean up old calls
+    _api_call_counts[resource_key] = [
+        timestamp for timestamp in _api_call_counts[resource_key]
+        if now - timestamp < _CALLS_RESET_AFTER
+    ]
+    
+    # Check if we've exceeded the limit
+    if len(_api_call_counts[resource_key]) >= _MAX_CALLS_PER_DAY:
+        oldest_call = min(_api_call_counts[resource_key])
+        reset_time = oldest_call + _CALLS_RESET_AFTER
+        wait_seconds = int((reset_time - now).total_seconds())
+        return False, wait_seconds
+    
+    # Add new call
+    _api_call_counts[resource_key].append(now)
+    return True, 0
+
+def get_bank_transactions(account, account_id=None, start_date=None, end_date=None):
     """
-    Retrieve transactions for a specific account.
+    Retrieve transactions for a specific account with improved rate limit handling.
+    Args:
+        account: The GoCardless AccountApi object
+        account_id: The account ID string (from requisition)
+        start_date: Optional start date for transaction filtering
+        end_date: Optional end date for transaction filtering
     """
     try:
-        transactions = account.get_transactions()
-        if not isinstance(transactions, dict) or 'transactions' not in transactions:
+        if not account_id:
+            print(f"Warning: No account_id provided for transaction fetch")
+            account_id = "unknown"
+        
+        # Generate unique key for this account's rate limiting
+        rate_limit_key = f"transactions_{account_id}"
+        
+        # Check rate limit before making the call
+        can_proceed, wait_time = check_rate_limit(rate_limit_key)
+        if not can_proceed:
+            print(f"Rate limit would be exceeded for account {account_id}. Need to wait {wait_time} seconds.")
             return []
         
-        booked = transactions.get('transactions', {}).get('booked', [])
-        pending = transactions.get('transactions', {}).get('pending', [])
-        
-        return booked + pending
+        try:
+            transactions = account.get_transactions()
+            
+            if not transactions:
+                return []
+                
+            if not isinstance(transactions, dict):
+                return []
+                
+            booked = transactions.get('transactions', {}).get('booked', [])
+            pending = transactions.get('transactions', {}).get('pending', [])
+            
+            return booked + pending
+            
+        except Exception as e:
+            error_data = getattr(e, 'response', {})
+            if isinstance(error_data, dict):
+                status = error_data.get('status')
+                if status == 403:  # Access forbidden
+                    print(f"Access forbidden for account {account_id}: {str(e)}")
+                    raise ValueError("Access forbidden")
+                elif status == 429:  # Rate limit exceeded
+                    # Remove the last call we just added since it failed
+                    if _api_call_counts[rate_limit_key]:
+                        _api_call_counts[rate_limit_key].pop()
+                    wait_time = int(error_data.get('detail', '').split()[-2]) + 1
+                    print(f"Rate limit hit for account {account_id}, would need to wait {wait_time} seconds")
+                    return []
+            
+            print(f"Error retrieving transactions for account {account_id}: {str(e)}")
+            return []
+            
+    except ValueError as ve:
+        raise ve
     except Exception as e:
-        print(f"Error retrieving transactions: {e}")
+        print(f"Error retrieving transactions: {str(e)}")
         return []
 
 def get_bank_accounts(client, institution_id):
@@ -101,22 +173,29 @@ def list_connected_banks(client):
             
         banks = []
         for req in requisitions:
+            if not isinstance(req, dict):
+                continue
+                
             if req.get('status') == 'LN':  # Only include linked/active requisitions
                 try:
-                    institution = client.institution.get_institution_by_id(req['institution_id'])
-                    if institution:
+                    institution_id = req.get('institution_id')
+                    if not institution_id:
+                        continue
+                        
+                    institution = client.institution.get_institution_by_id(institution_id)
+                    if institution and isinstance(institution, dict):
                         banks.append({
-                            'id': institution['id'],
-                            'name': institution['name'],
-                            'requisition_id': req['id']
+                            'id': institution.get('id'),
+                            'name': institution.get('name'),
+                            'requisition_id': req.get('id')
                         })
                 except Exception as e:
-                    print(f"Error processing bank {req['institution_id']}: {str(e)}")
+                    print(f"Error processing bank {req.get('institution_id', 'unknown')}: {str(e)}")
                     continue
                     
         return banks
     except Exception as e:
-        print(f"Error listing connected banks: {e}")
+        print(f"Error listing connected banks: {str(e)}")
         return []
 
 # Create FastAPI application instance
@@ -881,7 +960,14 @@ async def sync_gocardless(
             raise HTTPException(status_code=400, detail="Import source is not active")
         
         # Parse the config
-        config = json.loads(source.config)
+        try:
+            config = json.loads(source.config) if source.config else {}
+        except json.JSONDecodeError:
+            raise HTTPException(status_code=400, detail="Invalid source configuration")
+
+        if not isinstance(config, dict):
+            raise HTTPException(status_code=400, detail="Invalid configuration format")
+            
         if not config.get('secretId') or not config.get('secretKey'):
             raise HTTPException(
                 status_code=400, 
@@ -894,43 +980,147 @@ async def sync_gocardless(
             secret_key=config['secretKey']
         )
 
-        # Initialize tokens
-        client.generate_token()
+        # Initialize tokens with retry
+        max_retries = 3
+        retry_delay = 1
+        token_error = None
+        
+        for attempt in range(max_retries):
+            try:
+                token_data = client.generate_token()
+                client.token = token_data['access']
+                token_error = None
+                break
+            except Exception as e:
+                token_error = str(e)
+                if attempt < max_retries - 1:
+                    time.sleep(retry_delay * (2 ** attempt))
+                    continue
+        
+        if token_error:
+            raise HTTPException(status_code=400, detail=f"Failed to generate GoCardless token: {token_error}")
         
         # Get transactions from all connected accounts
         staged_transactions = []
+        errors = []
+        rate_limited_accounts = []
         
-        # Get list of connected banks
-        banks = list_connected_banks(client)
+        # Get active bank connections
+        bank_connections = db.query(models.BankConnection).filter(
+            models.BankConnection.import_source_id == source_id,
+            models.BankConnection.status == 'active'
+        ).all()
         
-        for bank in banks:
-            accounts = get_bank_accounts(client, bank['id'])
-            for account in accounts:
-                transactions = get_bank_transactions(account)
+        for connection in bank_connections:
+            try:
+                # Get requisition details and check status
+                requisition = client.requisition.get_requisition_by_id(
+                    requisition_id=connection.requisition_id
+                )
                 
-                # Convert each transaction to a staged transaction
-                for tx in transactions:
-                    staged_data = models.StagedTransactionCreate(
-                        source_id=source_id,
-                        external_id=tx.get('transactionId'),
-                        transaction_date=datetime.strptime(tx['bookingDate'], '%Y-%m-%d').date(),
-                        description=tx.get('remittanceInformationUnstructured', 'No description'),
-                        amount=Decimal(tx['transactionAmount']['amount']),
-                        account_id=None,  # Will be set during processing
-                        raw_data=json.dumps(tx)
-                    )
-                    
-                    # Create staged transaction
-                    service = BookkeepingService(db)
-                    staged_tx = service.create_staged_transaction(staged_data)
-                    staged_transactions.append(staged_tx)
+                # Check if requisition needs to be reauthorized
+                if requisition['status'] != 'LN' or 'access_expired' in requisition.get('status_description', '').lower():
+                    connection.status = 'disconnected'
+                    db.commit()
+                    errors.append(f"Connection {connection.bank_name} needs to be reauthorized")
+                    continue
+                
+                # Get accounts for this requisition
+                for account_id in requisition.get('accounts', []):
+                    try:
+                        account = client.account_api(account_id)
+                        
+                        # Check if we already have this account in our database
+                        bank_account = db.query(models.BankAccount).filter(
+                            models.BankAccount.account_id == account_id,
+                            models.BankAccount.connection_id == connection.id
+                        ).first()
+                        
+                        if not bank_account:
+                            # Create new bank account record
+                            details = account.get_details()
+                            bank_account = models.BankAccount(
+                                connection_id=connection.id,
+                                account_id=account_id,
+                                name=details.get('account', {}).get('name', 'Unknown Account'),
+                                iban=details.get('account', {}).get('iban'),
+                                currency=details.get('account', {}).get('currency'),
+                                status='active'
+                            )
+                            db.add(bank_account)
+                            db.commit()
+                        
+                        try:
+                            transactions = get_bank_transactions(account, account_id=account_id)
+                            if not transactions:
+                                rate_limited_accounts.append(account_id)
+                                continue
+                            
+                            # Convert each transaction to a staged transaction
+                            for tx in transactions:
+                                try:
+                                    # Skip if transaction already exists
+                                    existing = db.query(models.StagedTransaction).filter(
+                                        models.StagedTransaction.source_id == source_id,
+                                        models.StagedTransaction.external_id == tx.get('transactionId')
+                                    ).first()
+                                    
+                                    if existing:
+                                        continue
+                                    
+                                    staged_data = models.StagedTransactionCreate(
+                                        source_id=source_id,
+                                        external_id=tx.get('transactionId'),
+                                        transaction_date=datetime.strptime(tx['bookingDate'], '%Y-%m-%d').date(),
+                                        description=tx.get('remittanceInformationUnstructured', 'No description'),
+                                        amount=Decimal(tx['transactionAmount']['amount']),
+                                        account_id=None,  # Will be set during processing
+                                        raw_data=json.dumps(tx)
+                                    )
+                                    
+                                    # Create staged transaction
+                                    service = BookkeepingService(db)
+                                    staged_tx = service.create_staged_transaction(staged_data)
+                                    staged_transactions.append(staged_tx)
+                                    
+                                except Exception as e:
+                                    errors.append(f"Error creating staged transaction: {str(e)}")
+                                    continue
+                                    
+                        except ValueError as ve:
+                            if "Access forbidden" in str(ve):
+                                connection.status = 'disconnected'
+                                db.commit()
+                                errors.append(f"Access to account {account_id} is forbidden. Please reauthorize the connection.")
+                            continue
+                            
+                    except Exception as e:
+                        errors.append(f"Error processing account {account_id}: {str(e)}")
+                        continue
+                        
+            except Exception as e:
+                errors.append(f"Error processing bank connection {connection.requisition_id}: {str(e)}")
+                continue
         
-        return {
+        response = {
             "message": f"Successfully synced {len(staged_transactions)} transactions from GoCardless",
-            "transactions_count": len(staged_transactions)
+            "transactions_count": len(staged_transactions),
+            "errors": errors if errors else None
         }
         
+        if rate_limited_accounts:
+            response["rate_limited"] = {
+                "message": "Some accounts were skipped due to rate limits",
+                "accounts": rate_limited_accounts,
+                "retry_after": "24 hours"
+            }
+        
+        return response
+        
+    except HTTPException:
+        raise
     except Exception as e:
+        print(f"Error syncing transactions: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/import-sources/{source_id}/gocardless-banks", tags=["imports"])
@@ -1077,63 +1267,142 @@ async def create_gocardless_requisition(
 @app.get("/import-sources/{source_id}/gocardless-accounts", tags=["imports"])
 async def list_gocardless_accounts(
     source_id: str,
+    use_cached: bool = False,
+    refresh: bool = False,
     db: Session = Depends(get_db)
 ):
-    """
-    List bank accounts from local database, update if needed.
-    """
     try:
         # Get the import source
-        source = db.query(models.ImportSource).filter_by(id=source_id).first()
+        source = db.query(models.ImportSource).filter(
+            models.ImportSource.id == source_id,
+            models.ImportSource.type == models.ImportSourceType.GOCARDLESS
+        ).first()
+        
         if not source:
             raise HTTPException(status_code=404, detail="GoCardless import source not found")
         
-        # Get the bank connection
-        bank_connection = db.query(models.BankConnection).filter_by(
-            import_source_id=source_id
-        ).first()
+        if not source.is_active:
+            raise HTTPException(status_code=400, detail="Import source is not active")
         
-        if not bank_connection:
-            raise HTTPException(status_code=404, detail="Bank connection not found")
+        # Parse the config
+        try:
+            config = json.loads(source.config) if source.config else {}
+        except json.JSONDecodeError:
+            raise HTTPException(status_code=400, detail="Invalid source configuration")
 
-        # Initialize Nordigen client
+        if not isinstance(config, dict):
+            raise HTTPException(status_code=400, detail="Invalid configuration format")
+            
+        if not config.get('secretId') or not config.get('secretKey'):
+            raise HTTPException(
+                status_code=400, 
+                detail="Missing GoCardless credentials in configuration"
+            )
+
+        # Initialize GoCardless client
         client = NordigenClient(
-            secret_id=source.config.get('secretId'),
-            secret_key=source.config.get('secretKey')
+            secret_id=config['secretId'],
+            secret_key=config['secretKey']
         )
 
-        # Get requisition details
-        requisition = client.requisition.get_requisition_by_id(
-            bank_connection.requisition_id
-        )
+        # Get token
+        try:
+            token_data = client.generate_token()
+            client.token = token_data['access']
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Failed to generate GoCardless token: {str(e)}")
 
-        # If requisition is complete, update connection status
-        if requisition['status'] == 'LN':
-            bank_connection.status = 'active'
-            db.commit()
+        # If use_cached is True and not forcing refresh, try to get accounts from database first
+        if use_cached and not refresh:
+            # Get active bank connections
+            bank_connections = db.query(models.BankConnection).filter(
+                models.BankConnection.import_source_id == source_id,
+                models.BankConnection.status == 'active'
+            ).all()
 
-        # Get accounts for this requisition
+            if bank_connections:
+                # Get accounts for all active connections
+                accounts = []
+                for conn in bank_connections:
+                    bank_accounts = db.query(models.BankAccount).filter(
+                        models.BankAccount.connection_id == conn.id,
+                        models.BankAccount.status == 'active'
+                    ).all()
+                    
+                    # Add connection info to each account
+                    for account in bank_accounts:
+                        account_data = models.BankAccountResponse.model_validate(account).model_dump()
+                        account_data['connection'] = models.BankConnectionResponse.model_validate(conn).model_dump()
+                        accounts.append(account_data)
+
+                if accounts:
+                    return accounts
+
+        # If no cached accounts or refresh requested, fetch from API
         accounts = []
-        for account_id in requisition['accounts']:
+        bank_connections = db.query(models.BankConnection).filter(
+            models.BankConnection.import_source_id == source_id,
+            models.BankConnection.status == 'active'
+        ).all()
+
+        for connection in bank_connections:
             try:
-                account = client.account_api(account_id)
-                details = account.get_details()
-                accounts.append({
-                    'id': account_id,
-                    'name': details['account'].get('name', 'Unknown Account'),
-                    'iban': details['account'].get('iban'),
-                    'currency': details['account'].get('currency'),
-                    'status': details['status']
-                })
+                # Get requisition details
+                requisition = client.requisition.get_requisition_by_id(
+                    requisition_id=connection.requisition_id
+                )
+
+                # Update connection status if needed
+                if requisition['status'] == 'LN':
+                    connection.status = 'active'
+                    db.commit()
+
+                # Get accounts for this requisition
+                for account_id in requisition.get('accounts', []):
+                    try:
+                        # Get account details from API
+                        account_details = client.account.get_details(account_id)
+                        
+                        # Check if account already exists in database
+                        bank_account = db.query(models.BankAccount).filter(
+                            models.BankAccount.connection_id == connection.id,
+                            models.BankAccount.account_id == account_id
+                        ).first()
+
+                        if not bank_account:
+                            # Create new account record
+                            bank_account = models.BankAccount(
+                                connection_id=connection.id,
+                                account_id=account_id,
+                                name=account_details.get('account', {}).get('name', 'Unknown Account'),
+                                iban=account_details.get('account', {}).get('iban'),
+                                currency=account_details.get('account', {}).get('currency'),
+                                status='active'
+                            )
+                            db.add(bank_account)
+                            db.commit()
+                            db.refresh(bank_account)
+
+                        # Add account with connection info
+                        account_data = models.BankAccountResponse.model_validate(bank_account).model_dump()
+                        account_data['connection'] = models.BankConnectionResponse.model_validate(connection).model_dump()
+                        accounts.append(account_data)
+
+                    except Exception as e:
+                        print(f"Error fetching account details for {account_id}: {str(e)}")
+                        continue
+
             except Exception as e:
-                print(f"Error fetching account {account_id}: {str(e)}")
+                print(f"Error processing connection {connection.id}: {str(e)}")
                 continue
 
         return accounts
-            
+
+    except HTTPException:
+        raise
     except Exception as e:
-        db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
+        print(f"Error listing connected banks: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to list connected banks")
 
 @app.delete("/import-sources/{source_id}/gocardless-requisition/{requisition_id}", tags=["imports"])
 async def delete_gocardless_requisition(
