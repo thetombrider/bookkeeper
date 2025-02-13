@@ -5,23 +5,59 @@ import {
     deleteIntegration, 
     syncIntegration,
     updateConfigFields,
-    editIntegration
+    editIntegration,
+    loadConnectedBanks
 } from '../modules/integrations.js';
 import { showSuccessMessage, showErrorMessage, showConfirmDialog } from '../modules/modal.js';
+import { API_URL } from '../modules/config.js';
 
 document.addEventListener('DOMContentLoaded', async () => {
     try {
-        // Load initial integrations
-        await loadIntegrations();
-
-        // Set up form handlers
-        setupFormHandlers();
+        // Check for bank connection redirect
+        const urlParams = new URLSearchParams(window.location.search);
+        const sourceId = urlParams.get('source_id');
+        const action = urlParams.get('action');
         
-        // Set up list handlers
+        if (sourceId && action === 'bank_connected') {
+            try {
+                showLoading();
+                
+                // Wait a bit for the bank to process the connection
+                await new Promise(resolve => setTimeout(resolve, 2000));
+                
+                // Check for connected accounts
+                const response = await fetch(`${API_URL}/import-sources/${sourceId}/gocardless-accounts`);
+                if (!response.ok) {
+                    throw new Error('Failed to verify bank connection');
+                }
+                
+                const accounts = await response.json();
+                hideLoading();
+                
+                if (accounts && accounts.length > 0) {
+                    showSuccessMessage('Bank connected successfully! You can now sync your transactions.');
+                    // Clear URL parameters
+                    window.history.replaceState({}, document.title, window.location.pathname);
+                } else {
+                    showErrorMessage('Bank connection was not completed. Please try again.');
+                }
+                
+                // Reload integrations list to show the new connection
+                await loadIntegrations();
+            } catch (error) {
+                hideLoading();
+                showErrorMessage('Error connecting to bank: ' + error.message);
+            }
+        } else {
+            // Load initial integrations
+            await loadIntegrations();
+        }
+        
+        // Set up event handlers
+        setupFormHandlers();
         setupListHandlers();
-
     } catch (error) {
-        console.error('Error initializing integrations:', error);
+        console.error('Error initializing page:', error);
         showErrorMessage('Error loading integrations. Please refresh the page.');
     }
 });

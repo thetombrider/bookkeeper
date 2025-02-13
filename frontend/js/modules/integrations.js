@@ -65,8 +65,8 @@ const integrationConfigs = {
     },
     gocardless: {
         fields: [
-            { id: 'secretId', label: 'Secret ID', type: 'text', required: true },
-            { id: 'secretKey', label: 'Secret Key', type: 'password', required: true },
+            { id: 'secretId', label: 'Nordigen Secret ID', type: 'text', required: true },
+            { id: 'secretKey', label: 'Nordigen Secret Key', type: 'password', required: true },
             { id: 'country', label: 'Country', type: 'text', value: 'IT', required: true }
         ]
     },
@@ -80,7 +80,7 @@ const integrationConfigs = {
 
 export async function loadIntegrations() {
     try {
-        const response = await fetch(`${API_URL}/import-sources/`);
+        const response = await fetch(`${API_URL}/import-sources/?active_only=false`);
         if (!response.ok) {
             throw new Error('Failed to fetch integrations');
         }
@@ -96,37 +96,95 @@ export async function loadIntegrations() {
 }
 
 async function updateIntegrationsList(integrations) {
-    try {
-        const tableContainer = document.querySelector('#integrationsList');
-        if (!tableContainer) return;
+    const listContainer = document.getElementById('integrationsList');
+    if (!listContainer) return;
 
-        if (!integrations || integrations.length === 0) {
-            tableContainer.innerHTML = `
-                <table class="table table-hover mb-0">
-                    <thead>
-                        <tr>
-                            <th>Name</th>
-                            <th>Type</th>
-                            <th>Status</th>
-                            <th>Last Sync</th>
-                            <th class="text-end">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td colspan="5" class="text-center text-muted py-4">
-                                No integrations found.
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
-            `;
-            return;
+    if (!integrations || integrations.length === 0) {
+        listContainer.innerHTML = `
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Type</th>
+                        <th>Status</th>
+                        <th>Last Sync</th>
+                        <th class="text-end">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td colspan="5" class="text-center text-muted py-4">
+                            No integrations found.
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        `;
+        return;
+    }
+
+    const rows = await Promise.all(integrations.map(async integration => {
+        let bankConnectionsHtml = '';
+        
+        if (integration.type === 'gocardless' && integration.is_active) {
+            try {
+                console.log('Fetching accounts for integration:', integration.id);
+                const accounts = await loadConnectedBanks(integration);
+                console.log('Raw accounts data:', accounts);
+                
+                if (accounts && accounts.length > 0) {
+                    // Group accounts by bank connection
+                    const bankGroups = {};
+                    accounts.forEach(account => {
+                        if (!account.connection) {
+                            console.warn('Account missing connection data:', account);
+                            return;
+                        }
+                        
+                        const bankName = account.connection.bank_name;
+                        if (!bankGroups[bankName]) {
+                            bankGroups[bankName] = {
+                                bank_id: account.connection.bank_id,
+                                requisition_id: account.connection.requisition_id,
+                                accounts: []
+                            };
+                        }
+                        bankGroups[bankName].accounts.push(account);
+                    });
+
+                    // Generate HTML for each bank group
+                    bankConnectionsHtml = Object.entries(bankGroups).map(([bankName, group]) => `
+                        <div class="bank-connection mt-2">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <strong>${bankName}</strong>
+                                <button class="btn btn-sm btn-outline-danger" 
+                                        data-action="disconnect-bank" 
+                                        data-source-id="${integration.id}"
+                                        data-requisition-id="${group.requisition_id}">
+                                    <i class="bi bi-x-circle"></i> Disconnect
+                                </button>
+                            </div>
+                            <ul class="list-unstyled ms-3 mb-0 mt-1">
+                                ${group.accounts.map(account => `
+                                    <li class="small text-muted">
+                                        ${account.name} (${account.iban || 'No IBAN'})
+                                    </li>
+                                `).join('')}
+                            </ul>
+                        </div>
+                    `).join('');
+                }
+            } catch (error) {
+                console.error('Error loading connected banks:', error);
+            }
         }
 
-        const rows = integrations.map(integration => `
+        return `
             <tr>
-                <td>${integration.name}</td>
+                <td>
+                    ${integration.name}
+                    ${bankConnectionsHtml}
+                </td>
                 <td>${formatIntegrationType(integration.type)}</td>
                 <td>
                     <span class="badge ${integration.is_active ? 'bg-success' : 'bg-danger'}">
@@ -135,7 +193,7 @@ async function updateIntegrationsList(integrations) {
                 </td>
                 <td>${formatLastSync(integration)}</td>
                 <td class="text-end">
-                    ${integration.type === 'gocardless' ? `
+                    ${integration.type === 'gocardless' && integration.is_active ? `
                         <button class="btn btn-sm btn-outline-primary" data-action="setup" data-id="${integration.id}">
                             <i class="bi bi-bank"></i> Setup
                         </button>
@@ -151,37 +209,68 @@ async function updateIntegrationsList(integrations) {
                     </button>
                 </td>
             </tr>
-        `).join('');
-
-        tableContainer.innerHTML = `
-            <table class="table table-hover mb-0">
-                <thead>
-                    <tr>
-                        <th>Name</th>
-                        <th>Type</th>
-                        <th>Status</th>
-                        <th>Last Sync</th>
-                        <th class="text-end">Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${rows}
-                </tbody>
-            </table>
         `;
-    } catch (error) {
-        console.error('Error updating integrations list:', error);
-        showError('Failed to update integrations list');
-    }
+    }));
+
+    listContainer.innerHTML = `
+        <table class="table table-hover mb-0">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Type</th>
+                    <th>Status</th>
+                    <th>Last Sync</th>
+                    <th class="text-end">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${rows.join('\n')}
+            </tbody>
+        </table>
+    `;
 }
+
+// Add necessary styles
+const style = document.createElement('style');
+style.textContent = `
+    .bank-header {
+        cursor: pointer;
+        padding: 0.5rem;
+        border-radius: 0.25rem;
+    }
+    .bank-header:hover {
+        background-color: rgba(0,0,0,0.05);
+    }
+    .toggle-icon {
+        transition: transform 0.2s ease-in-out;
+    }
+    .bank-header[aria-expanded="true"] .toggle-icon {
+        transform: rotate(90deg);
+    }
+    .connected-banks-row {
+        background-color: #f8f9fa;
+    }
+    .bank-header .btn {
+        padding: 0.25rem 0.5rem;
+        font-size: 0.875rem;
+    }
+    .bank-header .btn:hover {
+        background-color: #dc3545;
+        color: white;
+    }
+`;
+document.head.appendChild(style);
 
 export async function loadConnectedBanks(integration) {
     try {
+        // First get the bank connections
         const response = await fetch(`${API_URL}/import-sources/${integration.id}/gocardless-accounts`);
         if (!response.ok) {
             throw new Error('Failed to fetch connected banks');
         }
-        return await response.json();
+        const accounts = await response.json();
+        console.log('Raw accounts data:', accounts);
+        return accounts;
     } catch (error) {
         console.error('Error loading connected banks:', error);
         throw error;
@@ -361,7 +450,7 @@ export async function editIntegration(id) {
 function formatIntegrationType(type) {
     const types = {
         tally: 'Tally',
-        gocardless: 'GoCardless',
+        gocardless: 'Nordigen Bank Integration',
         csv: 'CSV Import'
     };
     return types[type] || type;
@@ -415,167 +504,164 @@ export async function handleSetup(sourceId) {
         }
         
         // Fetch available banks
-        const response = await fetch(`${API_URL}/import-sources/${sourceId}/gocardless-banks?country=${country}`, {
-            headers: {
-                'Accept': 'application/json',
-                'Content-Type': 'application/json',
-                'X-Secret-Id': config.secretId,
-                'X-Secret-Key': config.secretKey
-            }
-        });
-        
+        const response = await fetch(`${API_URL}/import-sources/${sourceId}/gocardless-banks?country=${country}`);
         if (!response.ok) {
-            const data = await response.json();
-            if (data.response) {
-                throw new Error(data.response.detail || data.response.summary || 'Failed to fetch banks');
-            }
-            throw new Error(data.detail || 'Failed to fetch banks');
+            const errorData = await response.json();
+            throw new Error(errorData.detail || 'Failed to fetch banks');
         }
         const banks = await response.json();
         
         // Hide loading state
         hideLoading();
         
-        // Get modal elements
-        const modal = new bootstrap.Modal(document.getElementById('bankSelectionModal'));
-        const banksList = document.getElementById('banksList');
-        const searchInput = document.getElementById('bankSearch');
-        
-        // Function to render banks
-        function renderBanks(banksToRender) {
-            banksList.innerHTML = banksToRender.map(bank => `
-                <div class="col-md-4">
-                    <div class="card h-100">
-                        <div class="card-body">
-                            <h6 class="card-title">${bank.name}</h6>
-                            <button class="btn btn-primary btn-sm mt-2" onclick="selectBank('${sourceId}', '${bank.id}')">
-                                Select
-                            </button>
+        // Create modal content for bank selection
+        const modalHtml = `
+            <div class="modal fade" id="bankSelectionModal" tabindex="-1">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Select Your Bank</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="mb-3">
+                                <input type="text" class="form-control" id="bankSearch" placeholder="Search banks...">
+                            </div>
+                            <div class="list-group" id="banksList">
+                                ${banks.map(bank => `
+                                    <button type="button" class="list-group-item list-group-item-action bank-item" 
+                                            data-bank-id="${bank.id}">
+                                        ${bank.name}
+                                    </button>
+                                `).join('')}
+                            </div>
                         </div>
                     </div>
                 </div>
-            `).join('');
-        }
+            </div>
+        `;
+
+        // Add modal to document
+        const modalElement = new DOMParser().parseFromString(modalHtml, 'text/html').body.firstChild;
+        document.body.appendChild(modalElement);
         
-        // Initial render
-        renderBanks(banks);
+        // Initialize modal
+        const modal = new bootstrap.Modal(modalElement);
         
         // Add search functionality
+        const searchInput = modalElement.querySelector('#bankSearch');
+        const banksList = modalElement.querySelector('#banksList');
+        const bankItems = banksList.querySelectorAll('.bank-item');
+
         searchInput.addEventListener('input', (e) => {
             const searchTerm = e.target.value.toLowerCase();
-            const filteredBanks = banks.filter(bank => 
-                bank.name.toLowerCase().includes(searchTerm)
-            );
-            renderBanks(filteredBanks);
+            bankItems.forEach(item => {
+                const bankName = item.textContent.toLowerCase();
+                item.style.display = bankName.includes(searchTerm) ? 'block' : 'none';
+            });
         });
-        
-        // Show modal
+
+        // Handle bank selection
+        banksList.addEventListener('click', async (e) => {
+            const bankItem = e.target.closest('.bank-item');
+            if (!bankItem) return;
+
+            const bankId = bankItem.dataset.bankId;
+            modal.hide();
+
+            try {
+                showLoading();
+                
+                // Create requisition with redirect URL
+                const currentUrl = window.location.href;
+                const redirectUrl = new URL('integrations.html', currentUrl);
+                redirectUrl.searchParams.set('source_id', sourceId);
+                redirectUrl.searchParams.set('action', 'bank_connected');
+
+                const reqResponse = await fetch(
+                    `${API_URL}/import-sources/${sourceId}/gocardless-requisition`,
+                    {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ 
+                            bank_id: bankId,
+                            redirect_url: redirectUrl.toString()
+                        })
+                    }
+                );
+
+                if (!reqResponse.ok) {
+                    const errorData = await reqResponse.json();
+                    throw new Error(errorData.detail || 'Failed to create bank requisition');
+                }
+
+                const { link } = await reqResponse.json();
+                hideLoading();
+
+                // Show confirmation modal
+                const confirmModalHtml = `
+                    <div class="modal fade" id="bankConfirmModal" tabindex="-1">
+                        <div class="modal-dialog">
+                            <div class="modal-content">
+                                <div class="modal-header">
+                                    <h5 class="modal-title">Connect to Your Bank</h5>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                </div>
+                                <div class="modal-body">
+                                    <div class="alert alert-info">
+                                        <i class="bi bi-info-circle me-2"></i>
+                                        You will be redirected to your bank's website to authorize access.
+                                    </div>
+                                    <p>Please follow these steps:</p>
+                                    <ol>
+                                        <li>Click the button below to open your bank's login page</li>
+                                        <li>Log in to your bank account</li>
+                                        <li>Authorize access to your account data</li>
+                                        <li>You will be automatically redirected back to this page</li>
+                                    </ol>
+                                    <div class="d-grid gap-2">
+                                        <a href="${link}" class="btn btn-primary">
+                                            <i class="bi bi-bank"></i> Connect to Bank
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+
+                const confirmModalElement = new DOMParser().parseFromString(confirmModalHtml, 'text/html').body.firstChild;
+                document.body.appendChild(confirmModalElement);
+                const confirmModal = new bootstrap.Modal(confirmModalElement);
+                
+                // Show the confirmation modal
+                confirmModal.show();
+
+                // Clean up when modal is hidden
+                confirmModalElement.addEventListener('hidden.bs.modal', () => {
+                    confirmModalElement.remove();
+                });
+
+            } catch (error) {
+                hideLoading();
+                showError(error.message);
+                console.error('Error setting up bank connection:', error);
+            }
+        });
+
+        // Clean up when modal is hidden
+        modalElement.addEventListener('hidden.bs.modal', () => {
+            modalElement.remove();
+        });
+
+        // Show the modal
         modal.show();
-        
-    } catch (error) {
-        console.error('Error in handleSetup:', error);
-        showError(error.message || 'Failed to load banks. Please try again.');
-        hideLoading();
-    }
-}
 
-// Function to handle bank selection
-export async function selectBank(sourceId, bankId) {
-    try {
-        showLoading();
-        
-        // Get the integration config for credentials
-        const integration = allIntegrations.find(i => i.id === sourceId);
-        if (!integration) throw new Error('Integration not found');
-        
-        const config = JSON.parse(integration.config || '{}');
-        
-        if (!config.secretId || !config.secretKey) {
-            throw new Error('Missing GoCardless credentials. Please check your integration configuration.');
-        }
-        
-        // Create requisition
-        const response = await fetch(`${API_URL}/import-sources/${sourceId}/gocardless-requisition`, {
-            method: 'POST',
-            headers: {
-                'Accept': 'application/json',
-                'Content-Type': 'application/json',
-                'X-Secret-Id': config.secretId,
-                'X-Secret-Key': config.secretKey
-            },
-            body: JSON.stringify({ bank_id: bankId })
-        });
-        
-        const data = await response.json();
-        if (!response.ok) {
-            throw new Error(data.detail || 'Failed to create bank requisition');
-        }
-
-        // Open bank authentication in new window
-        const authWindow = window.open(data.link, '_blank');
-        
-        // Start polling for accounts
-        await pollForAccounts(sourceId, config);
-        
-        hideLoading();
-        showSuccess('Bank connection successful!');
-        
-        // Refresh integrations list
-        await loadIntegrations();
-        
     } catch (error) {
-        console.error('Error in selectBank:', error);
         hideLoading();
         showError(error.message);
+        console.error('Error in handleSetup:', error);
     }
-}
-
-async function pollForAccounts(sourceId, config) {
-    const maxAttempts = 30; // 5 minutes maximum polling time
-    const delayMs = 10000; // 10 seconds between attempts
-    let attempts = 0;
-
-    const checkAccounts = async () => {
-        try {
-            const response = await fetch(`${API_URL}/import-sources/${sourceId}/gocardless-accounts`, {
-                headers: {
-                    'Accept': 'application/json',
-                    'X-Secret-Id': config.secretId,
-                    'X-Secret-Key': config.secretKey
-                }
-            });
-            
-            if (response.ok) {
-                return true;
-            }
-            
-            // If we get a 500 error, it likely means the authorization is not complete
-            if (response.status === 500) {
-                return false;
-            }
-            
-            // For other errors, throw them
-            const data = await response.json();
-            throw new Error(data.detail || 'Failed to check account status');
-            
-        } catch (error) {
-            if (error.message.includes('Failed to check account status')) {
-                throw error;
-            }
-            return false;
-        }
-    };
-
-    while (attempts < maxAttempts) {
-        if (await checkAccounts()) {
-            return true;
-        }
-        
-        await new Promise(resolve => setTimeout(resolve, delayMs));
-        attempts++;
-    }
-
-    throw new Error('Timed out waiting for bank authorization. Please try again.');
 }
 
 // Remove the old click handler
@@ -776,8 +862,7 @@ function setupEventHandlers() {
     }
 }
 
-// Make selectBank and disconnectBank globally available
-window.selectBank = selectBank;
+// Make disconnectBank globally available
 window.disconnectBank = disconnectBank;
 
 export async function getIntegration(id) {

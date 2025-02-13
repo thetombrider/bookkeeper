@@ -104,10 +104,10 @@ function updateTransactionsTable() {
         const creditEntries = transaction.journal_entries.filter(entry => entry.credit_amount > 0);
         const amount = debitEntries.reduce((sum, entry) => sum + parseFloat(entry.debit_amount), 0);
 
-        return `
+    return `
             <tr>
                 <td>${formatDate(transaction.transaction_date)}</td>
-                <td>${transaction.description}</td>
+                        <td>${transaction.description}</td>
                 <td>${formatAccountsList(debitEntries)}</td>
                 <td>${formatAccountsList(creditEntries)}</td>
                 <td class="text-end numeric">${formatCurrency(amount)}</td>
@@ -118,8 +118,8 @@ function updateTransactionsTable() {
                     <button class="btn btn-sm btn-outline-danger" data-action="delete" data-id="${transaction.id}">
                         <i class="bi bi-trash"></i> Delete
                     </button>
-                </td>
-            </tr>
+                        </td>
+                    </tr>
         `;
     }).join('');
 
@@ -204,14 +204,14 @@ function addJournalEntryRow() {
         if (select && allAccounts) {
             select.innerHTML = `
                 <option value="">Select account...</option>
-                ${allAccounts.map(account => `
+            ${allAccounts.map(account => `
                     <option value="${account.id}">${account.name}</option>
-                `).join('')}
+            `).join('')}
             `;
         }
 
         // Add the row to the DOM
-        entriesList.appendChild(newRow);
+    entriesList.appendChild(newRow);
 
         // Now get references to the actual elements in the DOM
         const addedRow = entriesList.lastElementChild;
@@ -251,7 +251,7 @@ function addJournalEntryRow() {
         }
 
         // Update totals after adding the row
-        updateTotals();
+    updateTotals();
         console.log('Journal entry row added successfully');
         
     } catch (error) {
@@ -261,8 +261,8 @@ function addJournalEntryRow() {
 
 function removeJournalEntry(row) {
     if (row) {
-        row.remove();
-        updateTotals();
+    row.remove();
+    updateTotals();
     }
 }
 
@@ -527,7 +527,7 @@ async function deleteTransaction(id) {
                 'Accept': 'application/json'
             }
         });
-
+        
         if (!response.ok) {
             // For 404, just return false as the transaction is already gone
             if (response.status === 404) {
@@ -563,14 +563,14 @@ async function viewTransaction(id) {
             throw new Error('Failed to load transaction details');
         }
         const transaction = await response.json();
-
+        
         // Update the modal content
         const modalBody = modalElement.querySelector('.modal-body');
         modalBody.innerHTML = `
             <div class="mb-3">
                 <label class="fw-bold">Date:</label>
                 <div>${formatDate(transaction.transaction_date)}</div>
-            </div>
+                </div>
             <div class="mb-3">
                 <label class="fw-bold">Description:</label>
                 <div>${transaction.description}</div>
@@ -591,7 +591,7 @@ async function viewTransaction(id) {
                                 <td>${entry.account.name}</td>
                                 <td class="text-end numeric">${formatCurrency(entry.debit_amount)}</td>
                                 <td class="text-end numeric">${formatCurrency(entry.credit_amount)}</td>
-                            </tr>
+                                </tr>
                         `).join('')}
                     </tbody>
                 </table>
