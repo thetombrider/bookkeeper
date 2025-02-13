@@ -1,24 +1,60 @@
-FROM python:3.11-slim
+FROM python:3.11-slim as builder
 
-WORKDIR /app
+WORKDIR /build
 
-# Install SQLite and dependencies
+# Install build dependencies
 RUN apt-get update && apt-get install -y \
     sqlite3 \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy application files
+# Install Python dependencies
 COPY requirements.txt .
-RUN pip install -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
-COPY backend ./backend
-COPY alembic.ini .
-COPY migrations ./migrations
+# Final stage
+FROM python:3.11-slim
 
-# Create data directory for SQLite
-RUN mkdir -p /data
+WORKDIR /app
+
+# Copy only runtime dependencies from builder
+COPY --from=builder /usr/local/lib/python3.11/site-packages/ /usr/local/lib/python3.11/site-packages/
+COPY --from=builder /usr/bin/sqlite3 /usr/bin/sqlite3
+COPY --from=builder /usr/lib/x86_64-linux-gnu/libsqlite3.so* /usr/lib/x86_64-linux-gnu/
+
+# Create data directory for SQLite database
+RUN mkdir -p /data && chown -R nobody:nogroup /data
+
+# Copy application files
+COPY backend/ /app/backend/
+COPY alembic.ini /app/
+COPY migrations/ /app/migrations/
+
+# Set environment
 ENV DATABASE_URL="sqlite:////data/bookkeeper.db"
+ENV PORT=8000
+ENV PYTHONPATH=/app
 
+# Create startup script
+RUN echo '#!/bin/sh\n\
+cd /app\n\
+# Run migrations\n\
+python -m alembic upgrade head\n\
+\n\
+# Start the application\n\
+cd /app/backend\n\
+exec python -m uvicorn api:app --host 0.0.0.0 --port 8000\n\
+' > /app/start.sh && chmod +x /app/start.sh
+
+# Switch to non-root user
+USER nobody
+
+# Expose port
 EXPOSE 8000
-CMD ["uvicorn", "backend.api:app", "--host", "0.0.0.0", "--port", "8000"]
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
+
+# Run the application
+CMD ["/app/start.sh"]

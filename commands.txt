@@ -1,2 +1,9 @@
+#commands to run locally
 cd frontend && python -m http.server 3000
 python -m uvicorn backend.api:app --reload --host 0.0.0.0 --port 8000
+
+#commands to deploy to fly.io
+fly destroy bookkeeper-sqlite --yes
+fly apps create bookkeeper-sqlite
+fly volumes create bookkeeper_data --region fra --size 1
+fly deploy

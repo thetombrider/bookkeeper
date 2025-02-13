@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  bookkeeper-dev:  # More descriptive service name
+    container_name: bookkeeper-local  # Explicit container name
+    build:
+      context: .
+      dockerfile: Dockerfile  # Using the main Dockerfile
+    ports:
+      - "3000:3000"  # Frontend
+      - "8000:8000"  # Backend API
+    volumes:
+      - ./data:/data  # Mount the data directory for persistence
+    environment:
+      - DATABASE_URL=sqlite:////data/bookkeeper.db
+      - PYTHONPATH=/app
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    # Add some labels to identify this as the local dev container
+    labels:
+      - "com.bookkeeper.environment=development"
+      - "com.bookkeeper.type=local-dev"

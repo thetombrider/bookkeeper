@@ -19,8 +19,8 @@ from nordigen import NordigenClient
 import time
 from collections import defaultdict
 
-from . import models
-from .models import (
+from backend import models
+from backend.models import (
     AccountCategoryCreate, AccountCategoryResponse,
     AccountCreate, AccountResponse,
     TransactionCreate, TransactionResponse,
@@ -30,8 +30,8 @@ from .models import (
     StagedTransactionCreate, StagedTransactionResponse,
     ImportStatus
 )
-from .services import BookkeepingService
-from .database import get_db, engine, Base
+from backend.services import BookkeepingService
+from backend.database import get_db, engine, Base
 
 # Initialize database tables
 Base.metadata.create_all(bind=engine)
@@ -201,13 +201,20 @@ def list_connected_banks(client):
 # Create FastAPI application instance
 app = FastAPI(title="Bookkeeper")
 
+# Add health endpoint
+@app.get("/health")
+async def health_check():
+    return {"status": "healthy"}
+
 # Configure CORS middleware to allow frontend access
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "https://bookkeeper-frontend.fly.dev",  # Production frontend
-        "http://localhost:3000",                # Local development
-        "http://127.0.0.1:3000"                # Local development alternative
+        "https://bookkeeper-sqlite.fly.dev",  # Production frontend
+        "http://localhost:3000",             # Local development
+        "http://127.0.0.1:3000",            # Local development alternative
+        "https://*fly.dev",                 # Any fly.dev subdomain
+        "*"                                 # Allow all origins temporarily for debugging
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -1436,8 +1443,4 @@ async def delete_gocardless_requisition(
             
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.get("/health")
-async def health_check():
-    return {"status": "healthy", "timestamp": datetime.now().isoformat()} 
+        raise HTTPException(status_code=500, detail=str(e)) 

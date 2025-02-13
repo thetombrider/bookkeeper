@@ -1,25 +1,19 @@
-FROM node:18-alpine
+FROM python:3.11-slim
 
-WORKDIR /app
+WORKDIR /frontend
 
-# Install dependencies
-RUN apk add --no-cache gettext
+# Copy frontend files
+COPY frontend/ ./
 
-# Copy application files
-COPY frontend ./frontend
-COPY scripts/replace-env.sh ./replace-env.sh
+# Install curl for healthcheck
+RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
 
-# Make the script executable
-RUN chmod +x ./replace-env.sh
-
-# Install serve
-RUN npm install -g serve
-
-# Set default environment variables
-ENV API_URL=http://localhost:8000
-ENV ENVIRONMENT=production
-ENV VERSION=latest
-
-# Replace environment variables and start server
+# Expose port
 EXPOSE 3000
-CMD ["/bin/sh", "-c", "./replace-env.sh && serve -s frontend -l 3000"] 
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:3000 || exit 1
+
+# Start Python HTTP server
+CMD ["python", "-m", "http.server", "3000"] 

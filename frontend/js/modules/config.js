@@ -1,5 +1,7 @@
-// Get API URL from environment or fallback to localhost for development
-export const API_URL = window.API_URL || 'http://localhost:8000';
+// Configuration for the application
+export const API_URL = window.location.hostname === 'localhost' 
+    ? 'http://localhost:8000'
+    : `${window.location.protocol}//${window.location.host}`;
 
 export const formatCurrency = (amount) => {
     // Handle null/undefined
