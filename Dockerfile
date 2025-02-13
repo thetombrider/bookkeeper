@@ -17,8 +17,9 @@ RUN mkdir -p /data
 # Copy application files
 COPY backend/ /app/backend/
 COPY frontend/ /app/frontend/
-COPY alembic.ini /app/
-COPY migrations/ /app/migrations/
+
+# Copy database file
+# TODO: Later replace this with Railway volume for production
 COPY data/bookkeeper.db /data/bookkeeper.db
 
 # Set environment
