@@ -123,67 +123,14 @@ async function updateIntegrationsList(integrations) {
         return;
     }
 
-    const rows = await Promise.all(integrations.map(async integration => {
-        let bankConnectionsHtml = '';
-        
-        if (integration.type === 'gocardless' && integration.is_active) {
-            try {
-                console.log('Fetching accounts for integration:', integration.id);
-                const accounts = await loadConnectedBanks(integration);
-                console.log('Raw accounts data:', accounts);
-                
-                if (accounts && accounts.length > 0) {
-                    // Group accounts by bank connection
-                    const bankGroups = {};
-                    accounts.forEach(account => {
-                        if (!account.connection) {
-                            console.warn('Account missing connection data:', account);
-                            return;
-                        }
-                        
-                        const bankName = account.connection.bank_name;
-                        if (!bankGroups[bankName]) {
-                            bankGroups[bankName] = {
-                                bank_id: account.connection.bank_id,
-                                requisition_id: account.connection.requisition_id,
-                                accounts: []
-                            };
-                        }
-                        bankGroups[bankName].accounts.push(account);
-                    });
-
-                    // Generate HTML for each bank group
-                    bankConnectionsHtml = Object.entries(bankGroups).map(([bankName, group]) => `
-                        <div class="bank-connection mt-2">
-                            <div class="d-flex justify-content-between align-items-center">
-                                <strong>${bankName}</strong>
-                                <button class="btn btn-sm btn-outline-danger" 
-                                        data-action="disconnect-bank" 
-                                        data-source-id="${integration.id}"
-                                        data-requisition-id="${group.requisition_id}">
-                                    <i class="bi bi-x-circle"></i> Disconnect
-                                </button>
-                            </div>
-                            <ul class="list-unstyled ms-3 mb-0 mt-1">
-                                ${group.accounts.map(account => `
-                                    <li class="small text-muted">
-                                        ${account.name} (${account.iban || 'No IBAN'})
-                                    </li>
-                                `).join('')}
-                            </ul>
-                        </div>
-                    `).join('');
-                }
-            } catch (error) {
-                console.error('Error loading connected banks:', error);
-            }
-        }
-
-        return `
-            <tr>
+    let rows = [];
+    
+    for (const integration of integrations) {
+        // Main integration row
+        rows.push(`
+            <tr class="integration-row">
                 <td>
-                    ${integration.name}
-                    ${bankConnectionsHtml}
+                    <strong>${integration.name}</strong>
                 </td>
                 <td>${formatIntegrationType(integration.type)}</td>
                 <td>
@@ -209,8 +156,87 @@ async function updateIntegrationsList(integrations) {
                     </button>
                 </td>
             </tr>
-        `;
-    }));
+        `);
+        
+        // Add connected bank accounts if available
+        if (integration.type === 'gocardless' && integration.is_active) {
+            try {
+                const accounts = await loadConnectedBanks(integration);
+                
+                if (accounts && accounts.length > 0) {
+                    // Group accounts by bank connection
+                    const bankGroups = {};
+                    accounts.forEach(account => {
+                        if (!account.connection) {
+                            console.warn('Account missing connection data:', account);
+                            return;
+                        }
+                        
+                        const bankName = account.connection.bank_name;
+                        if (!bankGroups[bankName]) {
+                            bankGroups[bankName] = {
+                                bank_id: account.connection.bank_id,
+                                requisition_id: account.connection.requisition_id,
+                                accounts: []
+                            };
+                        }
+                        bankGroups[bankName].accounts.push(account);
+                    });
+
+                    // Add rows for each bank and its accounts
+                    Object.entries(bankGroups).forEach(([bankName, group]) => {
+                        const bankId = `bank-${group.requisition_id}`;
+                        // Bank header row
+                        rows.push(`
+                            <tr class="bank-row" data-bs-toggle="collapse" data-bs-target="#${bankId}" aria-expanded="false">
+                                <td colspan="4" class="ps-4">
+                                    <i class="bi bi-chevron-right toggle-icon"></i>
+                                    <strong><i class="bi bi-bank"></i> ${bankName}</strong>
+                                </td>
+                                <td class="text-end">
+                                    <button class="btn btn-sm btn-outline-danger" 
+                                            data-action="disconnect-bank" 
+                                            data-source-id="${integration.id}"
+                                            data-requisition-id="${group.requisition_id}"
+                                            onclick="event.stopPropagation()">
+                                        <i class="bi bi-x-circle"></i> Disconnect
+                                    </button>
+                                </td>
+                            </tr>
+                        `);
+
+                        // Account rows in a collapsible container
+                        rows.push(`
+                            <tr class="collapse" id="${bankId}">
+                                <td colspan="5" class="p-0">
+                                    <div class="bank-accounts-container">
+                                        ${group.accounts.map(account => `
+                                            <div class="account-row py-2">
+                                                <div class="row mx-0">
+                                                    <div class="col-6 ps-5">
+                                                        <div class="text-muted">
+                                                            ${account.name}
+                                                        </div>
+                                                    </div>
+                                                    <div class="col-6">
+                                                        <div class="text-muted text-end pe-4">
+                                                            ${account.iban || 'No IBAN'}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        `).join('')}
+                                    </div>
+                                </td>
+                            </tr>
+                        `);
+                    });
+                }
+            } catch (error) {
+                console.error('Error loading connected banks:', error);
+            }
+        }
+    }
 
     listContainer.innerHTML = `
         <table class="table table-hover mb-0">
@@ -228,6 +254,57 @@ async function updateIntegrationsList(integrations) {
             </tbody>
         </table>
     `;
+
+    // Add custom styles for the new layout
+    const style = document.createElement('style');
+    style.textContent = `
+        .integration-row {
+            background-color: white;
+        }
+        .bank-row {
+            background-color: #f8f9fa;
+            cursor: pointer;
+        }
+        .bank-row:hover {
+            background-color: #e9ecef;
+        }
+        .account-row {
+            background-color: #ffffff;
+            border-bottom: 1px solid rgba(0,0,0,.05);
+        }
+        .account-row:last-child {
+            border-bottom: none;
+        }
+        .account-row:hover {
+            background-color: #f8f9fa;
+        }
+        .bank-row td {
+            border-top: 1px solid #dee2e6;
+        }
+        .bank-accounts-container {
+            transition: all 0.3s ease;
+        }
+        .bank-accounts-container.collapsed {
+            display: none;
+        }
+        .bank-row .toggle-icon {
+            transition: transform 0.3s ease;
+            display: inline-block;
+            margin-right: 0.5rem;
+        }
+        .bank-row.expanded .toggle-icon {
+            transform: rotate(90deg);
+        }
+    `;
+    document.head.appendChild(style);
+
+    // Add click handler for bank rows
+    document.addEventListener('click', function(e) {
+        const bankRow = e.target.closest('.bank-row');
+        if (bankRow) {
+            bankRow.classList.toggle('expanded');
+        }
+    }, { capture: true });
 }
 
 // Add necessary styles
