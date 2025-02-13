@@ -875,14 +875,15 @@ async def tally_webhook(
     """
     Webhook endpoint for receiving transactions from Tally.
     Expected fields in the form:
-    - data: date field (transaction date)
-    - mese: string (month reference)
-    - causale: string (transaction description)
-    - categoria: string (transaction category)
-    - conto: string (account name)
-    - importo entrata: float (credit amount, mutually exclusive with importo uscita)
-    - importo uscita: float (debit amount, mutually exclusive with importo entrata)
-    - ricevuta: file attachment (optional)
+    - Data: date field (transaction date)
+    - Mese: string (month reference)
+    - Causale: string (transaction description)
+    - Categoria: string (transaction category)
+    - Conto: string (account name)
+    - Direzione: string (Entrata/Uscita)
+    - Importo Entrata: float (credit amount, mutually exclusive with importo uscita)
+    - Importo Uscita: float (debit amount, mutually exclusive with importo entrata)
+    - Inserisci la ricevuta: file attachment (optional)
     """
     service = BookkeepingService(db)
     try:
@@ -896,11 +897,21 @@ async def tally_webhook(
             raise HTTPException(status_code=400, detail="No active Tally import source configured")
         
         # Extract fields from Tally payload
-        fields = {field["label"].lower(): field["value"] for field in payload["data"]["fields"]}
+        form_fields = {field["label"]: field for field in payload["data"]["fields"]}
         
+        # Get the selected values for dropdowns
+        def get_selected_text(field):
+            if not field["value"]:
+                return None
+            selected_id = field["value"][0]  # Get first selected option
+            for option in field["options"]:
+                if option["id"] == selected_id:
+                    return option["text"]
+            return None
+
         # Extract amounts - they are mutually exclusive
-        importo_entrata = float(fields.get("importo entrata", 0))
-        importo_uscita = float(fields.get("importo uscita", 0))
+        importo_entrata = float(form_fields.get("Importo Entrata", {}).get("value") or 0)
+        importo_uscita = float(form_fields.get("Importo Uscita", {}).get("value") or 0)
         
         # Determine if this is a credit or debit entry
         is_credit = importo_entrata > 0
@@ -910,22 +921,23 @@ async def tally_webhook(
             raise HTTPException(status_code=400, detail="Transaction must have either a credit or debit amount")
         
         # Get receipt file URL if present
-        ricevuta_url = None
-        if "ricevuta" in fields and fields["ricevuta"]:
-            ricevuta_url = fields["ricevuta"][0]["url"] if isinstance(fields["ricevuta"], list) else None
+        ricevuta_field = form_fields.get("Inserisci la ricevuta", {})
+        ricevuta_url = ricevuta_field.get("value", [{}])[0].get("url") if ricevuta_field.get("value") else None
         
         # Create staged transaction
         staged_data = models.StagedTransactionCreate(
             source_id=source.id,
-            transaction_date=date.fromisoformat(fields["data"]),  # Tally sends ISO format dates
-            description=f"{fields.get('causale', 'No description')} - {fields.get('mese', '')}".strip(' -'),
+            external_id=payload["data"]["submissionId"],
+            transaction_date=date.fromisoformat(form_fields["Data"]["value"]),
+            description=f"{form_fields['Causale']['value']} - {get_selected_text(form_fields['Mese'])}".strip(' -'),
             amount=Decimal(str(amount)),
             raw_data=json.dumps({
-                **fields,
-                "is_credit": is_credit,
+                "mese": get_selected_text(form_fields["Mese"]),
+                "categoria": get_selected_text(form_fields["Categoria"]),
+                "conto": get_selected_text(form_fields["Conto"]),
+                "direzione": get_selected_text(form_fields["Direzione"]),
                 "receipt_url": ricevuta_url,
-                "category": fields.get("categoria"),
-                "account": fields.get("conto")
+                "is_credit": is_credit
             })
         )
         
