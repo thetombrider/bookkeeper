@@ -1,0 +1,25 @@
+FROM node:18-alpine
+
+WORKDIR /app
+
+# Install dependencies
+RUN apk add --no-cache gettext
+
+# Copy application files
+COPY frontend ./frontend
+COPY scripts/replace-env.sh ./replace-env.sh
+
+# Make the script executable
+RUN chmod +x ./replace-env.sh
+
+# Install serve
+RUN npm install -g serve
+
+# Set default environment variables
+ENV API_URL=http://localhost:8000
+ENV ENVIRONMENT=production
+ENV VERSION=latest
+
+# Replace environment variables and start server
+EXPOSE 3000
+CMD ["/bin/sh", "-c", "./replace-env.sh && serve -s frontend -l 3000"] 

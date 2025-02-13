@@ -204,7 +204,11 @@ app = FastAPI(title="Bookkeeper")
 # Configure CORS middleware to allow frontend access
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Update this with your frontend URL in production
+    allow_origins=[
+        "https://bookkeeper-frontend.fly.dev",  # Production frontend
+        "http://localhost:3000",                # Local development
+        "http://127.0.0.1:3000"                # Local development alternative
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -1432,4 +1436,8 @@ async def delete_gocardless_requisition(
             
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=500, detail=str(e)) 
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/health")
+async def health_check():
+    return {"status": "healthy", "timestamp": datetime.now().isoformat()} 

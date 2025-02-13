@@ -1,0 +1,11 @@
+// This script should be loaded before any other JavaScript
+(function() {
+    // Load environment variables from server-injected config
+    window.API_URL = '${API_URL}';
+    
+    // Add any other environment-specific configuration here
+    window.ENV = {
+        environment: '${ENVIRONMENT}',
+        version: '${VERSION}',
+    };
+})(); 

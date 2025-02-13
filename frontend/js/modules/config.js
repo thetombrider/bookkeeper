@@ -1,4 +1,5 @@
-export const API_URL = 'http://localhost:8000';
+// Get API URL from environment or fallback to localhost for development
+export const API_URL = window.API_URL || 'http://localhost:8000';
 
 export const formatCurrency = (amount) => {
     // Handle null/undefined

@@ -1,0 +1,24 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install SQLite and dependencies
+RUN apt-get update && apt-get install -y \
+    sqlite3 \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy application files
+COPY requirements.txt .
+RUN pip install -r requirements.txt
+
+COPY backend ./backend
+COPY alembic.ini .
+COPY migrations ./migrations
+
+# Create data directory for SQLite
+RUN mkdir -p /data
+ENV DATABASE_URL="sqlite:////data/bookkeeper.db"
+
+EXPOSE 8000
+CMD ["uvicorn", "backend.api:app", "--host", "0.0.0.0", "--port", "8000"]
