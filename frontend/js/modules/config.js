@@ -1,7 +1,7 @@
 // Configuration for the application
 export const API_URL = window.location.hostname === 'localhost' 
     ? 'http://localhost:8000'
-    : `${window.location.protocol}//${window.location.host}`;
+    : `${window.location.protocol}//${window.location.host}/api`;
 
 export const formatCurrency = (amount) => {
     // Handle null/undefined
