@@ -1,48 +1,54 @@
 import { API_URL, formatCurrency } from './config.js';
 import { loadCategories, updateCategoryDropdown } from './categories.js';
 import { showConfirmDialog, showSuccessMessage, showErrorMessage, showFormModal } from './modal.js';
+import { auth } from './auth.js';
 
-export let allAccounts = [];
+// State
+let allAccounts = [];
 let accountStartingBalances = new Set(); // Track accounts with starting balances
 
-export async function loadAccounts() {
+// Functions
+async function loadAccounts() {
     try {
-        await loadCategories();
+        // Check authentication first
+        if (!auth.requireAuth()) {
+            return [];
+        }
+
+        const response = await fetch(`${API_URL}/accounts/`, {
+            method: 'GET',
+            ...auth.addAuthHeader()
+        });
         
-        const [accountsResponse, transactionsResponse] = await Promise.all([
-            fetch(`${API_URL}/accounts/`),
-            fetch(`${API_URL}/transactions/`)
-        ]);
-        
-        allAccounts = await accountsResponse.json();
-        const transactions = await transactionsResponse.json();
-        
-        // Reset and rebuild the set of accounts with starting balances
-        accountStartingBalances.clear();
-        const saldiAccount = allAccounts.find(a => a.type === 'equity' && a.name === 'Saldi di Apertura');
-        
-        if (saldiAccount) {
-            transactions.forEach(transaction => {
-                if (transaction.description.startsWith('Saldo di Apertura') && 
-                    transaction.journal_entries.some(entry => entry.account_id === saldiAccount.id)) {
-                    // Extract the account ID from the other entry
-                    const accountEntry = transaction.journal_entries.find(entry => entry.account_id !== saldiAccount.id);
-                    if (accountEntry) {
-                        accountStartingBalances.add(accountEntry.account_id);
-                    }
-                }
-            });
+        if (!response.ok) {
+            if (response.status === 401) {
+                auth.logout();
+                return [];
+            }
+            throw new Error('Failed to load accounts');
         }
         
-        updateAccountsList(allAccounts);
-        return allAccounts;
+        const data = await response.json();
+        allAccounts = [...data];
+        
+        // Update accounts list if the element exists
+        const accountsList = document.getElementById('accountsList');
+        if (accountsList) {
+            updateAccountsList(allAccounts);
+        }
+        
+        return data;
     } catch (error) {
         console.error('Error loading accounts:', error);
-        throw error;
+        if (error.message.includes('401')) {
+            auth.logout();
+        }
+        showErrorMessage('Error loading accounts: ' + error.message);
+        return [];
     }
 }
 
-export function updateAccountsList(accounts) {
+function updateAccountsList(accounts) {
     const accountsList = document.getElementById('accountsList');
     if (!accountsList) return;
     
@@ -261,18 +267,22 @@ function canHaveStartingBalance(account) {
     return ['asset', 'liability', 'equity'].includes(account.type);
 }
 
-export async function createAccount(accountData) {
+async function createAccount(accountData) {
     try {
         const response = await fetch(`${API_URL}/accounts/`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'Accept': 'application/json'
+                ...auth.addAuthHeader().headers
             },
             body: JSON.stringify(accountData)
         });
         
         if (!response.ok) {
+            if (response.status === 401) {
+                auth.logout();
+                return null;
+            }
             const errorData = await response.json();
             throw new Error(errorData.detail?.message || errorData.detail || 'Cannot create account.');
         }
@@ -282,24 +292,31 @@ export async function createAccount(accountData) {
         return newAccount;
     } catch (error) {
         console.error('Error creating account:', error);
+        if (error.message.includes('401')) {
+            auth.logout();
+        }
         throw error;
     }
 }
 
-export async function updateAccount(id, accountData) {
+async function updateAccount(id, accountData) {
     try {
         const response = await fetch(`${API_URL}/accounts/${id}`, {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',
-                'Accept': 'application/json'
+                ...auth.addAuthHeader().headers
             },
             body: JSON.stringify(accountData)
         });
         
         if (!response.ok) {
+            if (response.status === 401) {
+                auth.logout();
+                return null;
+            }
             const errorData = await response.json();
-            throw new Error(errorData.detail || 'Error updating account');
+            throw new Error(errorData.detail || 'Cannot update account.');
         }
         
         const updatedAccount = await response.json();
@@ -307,53 +324,60 @@ export async function updateAccount(id, accountData) {
         return updatedAccount;
     } catch (error) {
         console.error('Error updating account:', error);
+        if (error.message.includes('401')) {
+            auth.logout();
+        }
         throw error;
     }
 }
 
-export async function deleteAccount(id) {
+async function deleteAccount(id) {
     try {
         const response = await fetch(`${API_URL}/accounts/${id}`, {
             method: 'DELETE',
-            headers: {
-                'Accept': 'application/json'
-            }
+            ...auth.addAuthHeader()
         });
         
-        const data = await response.json().catch(() => ({}));
-        
         if (!response.ok) {
-            let errorMessage;
-            
-            if (response.status === 404 || (data.detail && data.detail.type === 'not_found')) {
-                errorMessage = 'Account not found or already deleted';
-            } else if (data.detail && data.detail.message) {
-                errorMessage = data.detail.message;
-            } else if (data.detail) {
-                errorMessage = typeof data.detail === 'string' ? data.detail : JSON.stringify(data.detail);
-            } else {
-                errorMessage = 'Server error occurred while deleting account';
+            if (response.status === 401) {
+                auth.logout();
+                return false;
             }
-            
-            throw new Error(errorMessage);
+            const errorData = await response.json();
+            throw new Error(errorData.detail || 'Cannot delete account.');
         }
         
         return true;
     } catch (error) {
-        console.error('Error in deleteAccount:', error);
+        console.error('Error deleting account:', error);
+        if (error.message.includes('401')) {
+            auth.logout();
+        }
         throw error;
     }
 }
 
-export async function getAccountBalance(accountId) {
+async function getAccountBalance(accountId) {
     try {
-        const response = await fetch(`${API_URL}/accounts/${accountId}/balance`);
+        const response = await fetch(`${API_URL}/accounts/${accountId}/balance`, {
+            method: 'GET',
+            ...auth.addAuthHeader()
+        });
+        
         if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
+            if (response.status === 401) {
+                auth.logout();
+                return null;
+            }
+            throw new Error('Failed to get account balance');
         }
+        
         return await response.json();
     } catch (error) {
-        console.error('Error fetching account balance:', error);
+        console.error('Error getting account balance:', error);
+        if (error.message.includes('401')) {
+            auth.logout();
+        }
         throw error;
     }
 }
@@ -506,4 +530,18 @@ async function handleStartingBalance(accountId) {
             return false;
         }
     });
-} 
+}
+
+// Export all functions at the end of the file
+export {
+    loadAccounts,
+    updateAccountsList,
+    createAccount,
+    updateAccount,
+    deleteAccount,
+    getAccountBalance,
+    handleEditAccount,
+    handleDeleteAccount,
+    handleStartingBalance,
+    allAccounts
+}; 

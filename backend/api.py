@@ -8,8 +8,9 @@ journal entries, and generating financial reports.
 
 from datetime import date, datetime, timedelta
 from typing import List, Optional, Dict, Any, Tuple
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, HTTPException, Depends, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from decimal import Decimal
 import os
@@ -19,8 +20,8 @@ from nordigen import NordigenClient
 import time
 from collections import defaultdict
 
-from backend import models
-from backend.models import (
+from . import models
+from .models import (
     AccountCategoryCreate, AccountCategoryResponse,
     AccountCreate, AccountResponse,
     TransactionCreate, TransactionResponse,
@@ -30,8 +31,13 @@ from backend.models import (
     StagedTransactionCreate, StagedTransactionResponse,
     ImportStatus
 )
-from backend.services import BookkeepingService
-from backend.database import get_db, engine, Base
+from .services import BookkeepingService
+from .database import get_db, engine, Base
+from .auth import (
+    User, UserCreate, UserResponse, Token,
+    create_access_token, authenticate_user, create_user,
+    get_current_user, ACCESS_TOKEN_EXPIRE_MINUTES
+)
 
 # Initialize database tables
 Base.metadata.create_all(bind=engine)
@@ -201,25 +207,55 @@ def list_connected_banks(client):
 # Create FastAPI application instance
 app = FastAPI(title="Bookkeeper")
 
+# Configure CORS middleware to allow frontend access
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000"],  # Frontend development server
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization", "accept"],
+)
+
 # Add health endpoint
 @app.get("/health")
 async def health_check():
     return {"status": "healthy"}
 
-# Configure CORS middleware to allow frontend access
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[
-        "https://bookkeeper-sqlite.fly.dev",  # Production frontend
-        "http://localhost:3000",             # Local development
-        "http://127.0.0.1:3000",            # Local development alternative
-        "https://*fly.dev",                 # Any fly.dev subdomain
-        "*"                                 # Allow all origins temporarily for debugging
-    ],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# Authentication endpoints
+@app.post("/register", response_model=UserResponse, tags=["auth"])
+async def register(user_data: UserCreate, db: Session = Depends(get_db)):
+    """Register a new user."""
+    db_user = db.query(User).filter(User.email == user_data.email).first()
+    if db_user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email already registered"
+        )
+    return create_user(db=db, user=user_data)
+
+@app.post("/token", response_model=Token, tags=["auth"])
+async def login(
+    form_data: OAuth2PasswordRequestForm = Depends(),
+    db: Session = Depends(get_db)
+):
+    """Login to get access token."""
+    user = authenticate_user(db, form_data.username, form_data.password)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect email or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={"sub": user.email}, expires_delta=access_token_expires
+    )
+    return {"access_token": access_token, "token_type": "bearer"}
+
+@app.get("/users/me", response_model=UserResponse, tags=["auth"])
+async def read_users_me(current_user: User = Depends(get_current_user)):
+    """Get current user information."""
+    return current_user
 
 # Create runs directory if it doesn't exist
 RUNS_DIR = "runs"
@@ -272,44 +308,50 @@ async def get_account_journal_entries(
     )
 
 # Account Categories Endpoints
-
 @app.get("/account-categories/", response_model=List[AccountCategoryResponse], tags=["account-categories"])
-async def list_account_categories(db: Session = Depends(get_db)):
-    """
-    List all account categories.
-    
-    Returns a list of all account categories in the system.
-    """
-    service = BookkeepingService(db)
+async def list_account_categories(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """List all account categories for the current user."""
+    service = BookkeepingService(db, user_id=current_user.id)
     return service.list_account_categories()
 
 @app.post("/account-categories/", response_model=AccountCategoryResponse, tags=["account-categories"])
 async def create_account_category(
     category_data: AccountCategoryCreate,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """
-    Create a new account category.
-    
-    Parameters:
-    - category_data: Data for the new category (name and optional description)
-    
-    Returns the newly created account category.
-    """
-    service = BookkeepingService(db)
+    """Create a new account category."""
+    service = BookkeepingService(db, user_id=current_user.id)
     try:
         return service.create_account_category(category_data)
-    except Exception as e:
+    except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+@app.get("/account-categories/{category_id}", response_model=AccountCategoryResponse, tags=["account-categories"])
+async def get_account_category(
+    category_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get a specific account category."""
+    service = BookkeepingService(db, user_id=current_user.id)
+    category = service.get_account_category(category_id)
+    if not category:
+        raise HTTPException(status_code=404, detail="Category not found")
+    return category
 
 @app.put("/account-categories/{category_id}", response_model=AccountCategoryResponse, tags=["account-categories"])
 async def update_account_category(
     category_id: str,
     category_data: AccountCategoryCreate,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """Update an existing account category."""
-    service = BookkeepingService(db)
+    service = BookkeepingService(db, user_id=current_user.id)
     try:
         updated_category = service.update_account_category(category_id, category_data)
         if not updated_category:
@@ -320,64 +362,45 @@ async def update_account_category(
         return updated_category
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"An unexpected error occurred: {str(e)}"
-        )
 
 @app.delete("/account-categories/{category_id}", tags=["account-categories"])
 async def delete_account_category(
     category_id: str,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """
-    Delete an account category.
-    
-    If the category has associated accounts, returns a 400 error with details about which accounts
-    are preventing the deletion.
-    """
-    service = BookkeepingService(db)
+    """Delete an account category."""
+    service = BookkeepingService(db, user_id=current_user.id)
     try:
-        result = service.delete_account_category(category_id)
-        if not result:
+        if not service.delete_account_category(category_id):
             raise HTTPException(
                 status_code=404,
                 detail=f"Account category with id {category_id} not found"
             )
         return {"status": "success", "message": "Category deleted successfully"}
     except ValueError as e:
-        print(f"ValueError in delete_account_category: {str(e)}")  # Debug log
-        raise HTTPException(
-            status_code=400,
-            detail={"message": str(e), "type": "validation_error"}
-        )
-    except Exception as e:
-        print(f"Unexpected error in delete_account_category: {str(e)}")  # Debug log
-        raise HTTPException(
-            status_code=500,
-            detail={"message": f"An unexpected error occurred: {str(e)}", "type": "server_error"}
-        )
+        raise HTTPException(status_code=400, detail=str(e))
 
 # Accounts Endpoints
-
 @app.get("/accounts/", response_model=List[AccountResponse], tags=["accounts"])
 async def list_accounts(
     category_id: Optional[str] = None,
     account_type: Optional[str] = None,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """List all accounts, optionally filtered by category or type."""
-    service = BookkeepingService(db)
+    """List all accounts for the current user."""
+    service = BookkeepingService(db, user_id=current_user.id)
     return service.list_accounts(category_id=category_id, account_type=account_type)
 
 @app.get("/accounts/{account_id}", response_model=AccountResponse, tags=["accounts"])
 async def get_account(
     account_id: str,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Get a specific account by ID."""
-    service = BookkeepingService(db)
+    """Get a specific account."""
+    service = BookkeepingService(db, user_id=current_user.id)
     account = service.get_account(account_id)
     if not account:
         raise HTTPException(status_code=404, detail="Account not found")
@@ -386,113 +409,60 @@ async def get_account(
 @app.post("/accounts/", response_model=AccountResponse, tags=["accounts"])
 async def create_account(
     account_data: AccountCreate,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Create a new account in the chart of accounts."""
-    service = BookkeepingService(db)
+    """Create a new account."""
+    service = BookkeepingService(db, user_id=current_user.id)
     try:
         return service.create_account(account_data)
     except ValueError as e:
-        raise HTTPException(
-            status_code=400,
-            detail={"message": str(e), "type": "validation_error"}
-        )
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail={"message": f"An unexpected error occurred: {str(e)}", "type": "server_error"}
-        )
+        raise HTTPException(status_code=400, detail=str(e))
 
 @app.put("/accounts/{account_id}", response_model=AccountResponse, tags=["accounts"])
 async def update_account(
     account_id: str,
     account_data: AccountCreate,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """Update an existing account."""
-    service = BookkeepingService(db)
+    service = BookkeepingService(db, user_id=current_user.id)
     try:
         updated_account = service.update_account(account_id, account_data)
         if not updated_account:
-            raise HTTPException(
-                status_code=404,
-                detail={"message": f"Account with id {account_id} not found", "type": "not_found"}
-            )
+            raise HTTPException(status_code=404, detail="Account not found")
         return updated_account
     except ValueError as e:
-        raise HTTPException(
-            status_code=400,
-            detail={"message": str(e), "type": "validation_error"}
-        )
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail={"message": f"An unexpected error occurred: {str(e)}", "type": "server_error"}
-        )
+        raise HTTPException(status_code=400, detail=str(e))
 
 @app.delete("/accounts/{account_id}", tags=["accounts"])
 async def delete_account(
     account_id: str,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """Delete an account."""
-    service = BookkeepingService(db)
+    service = BookkeepingService(db, user_id=current_user.id)
     try:
         if not service.delete_account(account_id):
-            raise HTTPException(
-                status_code=404,
-                detail={"message": f"Account with id {account_id} not found", "type": "not_found"}
-            )
+            raise HTTPException(status_code=404, detail="Account not found")
         return {"status": "success", "message": "Account deleted successfully"}
     except ValueError as e:
-        raise HTTPException(
-            status_code=400,
-            detail={"message": str(e), "type": "validation_error"}
-        )
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail={"message": f"An unexpected error occurred: {str(e)}", "type": "server_error"}
-        )
+        raise HTTPException(status_code=400, detail=str(e))
 
 # Transactions Endpoints
-
-@app.post("/transactions/", response_model=TransactionResponse, tags=["transactions"])
-async def create_transaction(
-    transaction_data: TransactionCreate,
-    db: Session = Depends(get_db)
-):
-    """Create a new transaction with journal entries."""
-    service = BookkeepingService(db)
-    try:
-        return service.create_transaction(transaction_data)
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.get("/transactions/{transaction_id}", response_model=TransactionResponse, tags=["transactions"])
-async def get_transaction(
-    transaction_id: str,
-    db: Session = Depends(get_db)
-):
-    """Get a specific transaction with its journal entries."""
-    service = BookkeepingService(db)
-    transaction = service.get_transaction(transaction_id)
-    if not transaction:
-        raise HTTPException(status_code=404, detail="Transaction not found")
-    return transaction
-
 @app.get("/transactions/", response_model=List[TransactionResponse], tags=["transactions"])
 async def list_transactions(
     start_date: Optional[date] = None,
     end_date: Optional[date] = None,
     account_id: Optional[str] = None,
     account_filter_type: Optional[str] = None,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """List all transactions, optionally filtered by date range and account."""
-    service = BookkeepingService(db)
+    """List all transactions for the current user."""
+    service = BookkeepingService(db, user_id=current_user.id)
     return service.list_transactions(
         start_date=start_date,
         end_date=end_date,
@@ -500,23 +470,41 @@ async def list_transactions(
         account_filter_type=account_filter_type
     )
 
+@app.get("/transactions/{transaction_id}", response_model=TransactionResponse, tags=["transactions"])
+async def get_transaction(
+    transaction_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get a specific transaction."""
+    service = BookkeepingService(db, user_id=current_user.id)
+    transaction = service.get_transaction(transaction_id)
+    if not transaction:
+        raise HTTPException(status_code=404, detail="Transaction not found")
+    return transaction
+
+@app.post("/transactions/", response_model=TransactionResponse, tags=["transactions"])
+async def create_transaction(
+    transaction_data: TransactionCreate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Create a new transaction."""
+    service = BookkeepingService(db, user_id=current_user.id)
+    try:
+        return service.create_transaction(transaction_data)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
 @app.put("/transactions/{transaction_id}", response_model=TransactionResponse, tags=["transactions"])
 async def update_transaction(
     transaction_id: str,
     transaction_data: TransactionCreate,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """
-    Update an existing transaction.
-    
-    Parameters:
-    - transaction_id: ID of the transaction to update
-    - transaction_data: New transaction data including journal entries
-    
-    Returns the updated transaction with its journal entries.
-    Validates that debits equal credits before updating.
-    """
-    service = BookkeepingService(db)
+    """Update an existing transaction."""
+    service = BookkeepingService(db, user_id=current_user.id)
     try:
         updated_transaction = service.update_transaction(transaction_id, transaction_data)
         if not updated_transaction:
@@ -524,116 +512,61 @@ async def update_transaction(
         return updated_transaction
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
 
-@app.delete("/transactions/{transaction_id}", status_code=204, tags=["transactions"])
+@app.delete("/transactions/{transaction_id}", tags=["transactions"])
 async def delete_transaction(
     transaction_id: str,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """
-    Delete a transaction and its associated journal entries.
-    
-    Parameters:
-    - transaction_id: ID of the transaction to delete
-    
-    Returns no content (204) on successful deletion.
-    Ensures all related journal entries are also deleted.
-    """
-    service = BookkeepingService(db)
+    """Delete a transaction."""
+    service = BookkeepingService(db, user_id=current_user.id)
     try:
         if not service.delete_transaction(transaction_id):
             raise HTTPException(status_code=404, detail="Transaction not found")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        return {"status": "success", "message": "Transaction deleted successfully"}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 # Reports Endpoints
-
 @app.get("/balance-sheet/", response_model=BalanceSheet, tags=["reports"])
 async def get_balance_sheet(
     as_of: Optional[date] = None,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """
-    Generate a balance sheet report.
-    
-    Parameters:
-    - as_of: Optional date for point-in-time balance sheet (defaults to current date)
-    
-    Returns a balance sheet showing:
-    - Total assets
-    - Total liabilities
-    - Total equity
-    - Detailed breakdown of each category
-    """
-    service = BookkeepingService(db)
+    """Get balance sheet for the current user."""
+    service = BookkeepingService(db, user_id=current_user.id)
     try:
         return service.get_balance_sheet(as_of)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 @app.get("/income-statement/", response_model=IncomeStatement, tags=["reports"])
 async def get_income_statement(
     start_date: date,
     end_date: date,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """
-    Generate an income statement report for a specific period.
-    Logs debug information to a file in the runs directory.
-    """
-    # Create a log file with timestamp
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    log_file = os.path.join(RUNS_DIR, f"income_statement_run_{timestamp}.log")
-    
+    """Get income statement for the current user."""
+    service = BookkeepingService(db, user_id=current_user.id)
     try:
-        service = BookkeepingService(db)
-        
-        # Redirect print statements to log file
-        with open(log_file, "w") as f:
-            # Log run parameters
-            f.write(f"Income Statement Generation Run\n")
-            f.write(f"Timestamp: {datetime.now()}\n")
-            f.write(f"Period: {start_date} to {end_date}\n\n")
-            
-            # Get income statement with logging
-            result = service.get_income_statement(
-                start_date, 
-                end_date, 
-                log_file=f
-            )
-            
-            f.write("\nRun completed successfully\n")
-        
-        return result
-        
-    except Exception as e:
-        # Log any errors
-        with open(log_file, "a") as f:
-            f.write(f"\nError occurred: {str(e)}\n")
-        raise HTTPException(status_code=500, detail=str(e))
+        return service.get_income_statement(start_date, end_date)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 @app.get("/accounts/balances/", response_model=Dict[str, Decimal], tags=["accounts"])
 async def get_account_balances(
-    as_of: Optional[date] = None,
-    category_id: Optional[str] = None,
-    account_type: Optional[str] = None,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """
-    Get current balances for all accounts, optionally filtered by:
-    - Category
-    - Account type
-    - Date (as of a specific date)
-    Returns a dictionary of account IDs to their balances.
-    """
-    service = BookkeepingService(db)
-    return service.get_account_balances(
-        as_of=as_of,
-        category_id=category_id,
-        account_type=account_type
-    )
+    """Get current balances for all accounts."""
+    service = BookkeepingService(db, user_id=current_user.id)
+    try:
+        return service.get_account_balances()
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 @app.get("/accounts/{account_id}/balance", response_model=Decimal, tags=["accounts"])
 async def get_account_balance(

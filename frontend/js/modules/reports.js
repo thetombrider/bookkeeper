@@ -1,4 +1,5 @@
 import { API_URL, formatCurrency } from './config.js';
+import { auth } from './auth.js';
 
 export async function loadBalanceSheet(asOfDate = null) {
     try {
@@ -6,7 +7,7 @@ export async function loadBalanceSheet(asOfDate = null) {
             ? `${API_URL}/balance-sheet/?as_of=${asOfDate}`
             : `${API_URL}/balance-sheet/`;
             
-        const response = await fetch(url);
+        const response = await fetch(url, auth.addAuthHeader());
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
@@ -113,7 +114,10 @@ export async function loadBalanceSheet(asOfDate = null) {
 
 export async function loadIncomeStatement(startDate, endDate) {
     try {
-        const response = await fetch(`${API_URL}/income-statement/?start_date=${startDate}&end_date=${endDate}`);
+        const response = await fetch(
+            `${API_URL}/income-statement/?start_date=${startDate}&end_date=${endDate}`,
+            auth.addAuthHeader()
+        );
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
         }

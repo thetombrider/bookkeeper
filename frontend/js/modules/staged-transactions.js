@@ -1,11 +1,14 @@
 import { API_URL, formatCurrency } from './config.js';
 import { showSuccessMessage, showErrorMessage, showConfirmDialog } from './modal.js';
 import { loadAccounts } from './accounts.js';
+import { auth } from './auth.js';
 
-export let allStagedTransactions = [];
+// State
+let allStagedTransactions = [];
 let selectedTransactions = new Set();
 
-export async function loadStagedTransactions(filters = {}) {
+// Functions
+async function loadStagedTransactions(filters = {}) {
     try {
         const params = new URLSearchParams();
         if (filters.source_id) params.append('source_id', filters.source_id);
@@ -14,7 +17,7 @@ export async function loadStagedTransactions(filters = {}) {
         if (filters.end_date) params.append('end_date', filters.end_date);
 
         const url = `${API_URL}/staged-transactions/${params.toString() ? '?' + params.toString() : ''}`;
-        const response = await fetch(url);
+        const response = await fetch(url, auth.addAuthHeader());
         
         if (!response.ok) {
             throw new Error('Failed to load staged transactions');
@@ -29,7 +32,7 @@ export async function loadStagedTransactions(filters = {}) {
     }
 }
 
-export async function updateTransactionsList() {
+async function updateTransactionsList() {
     try {
         const table = document.getElementById('stagedTransactionsTable');
         if (!table) return;
@@ -101,13 +104,13 @@ export async function updateTransactionsList() {
     }
 }
 
-export async function processStagedTransaction(transactionId, counterpartAccountId) {
+async function processStagedTransaction(transactionId, counterpartAccountId) {
     try {
         const response = await fetch(`${API_URL}/staged-transactions/${transactionId}/process`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'Accept': 'application/json'
+                ...auth.addAuthHeader().headers
             },
             body: JSON.stringify({ counterpart_account_id: counterpartAccountId })
         });
@@ -126,13 +129,13 @@ export async function processStagedTransaction(transactionId, counterpartAccount
     }
 }
 
-export async function bulkProcessTransactions(transactionIds, counterpartAccountId) {
+async function bulkProcessTransactions(transactionIds, counterpartAccountId) {
     try {
         const response = await fetch(`${API_URL}/staged-transactions/bulk-process`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'Accept': 'application/json'
+                ...auth.addAuthHeader().headers
             },
             body: JSON.stringify({
                 staged_ids: transactionIds,
@@ -155,13 +158,11 @@ export async function bulkProcessTransactions(transactionIds, counterpartAccount
     }
 }
 
-export async function deleteStagedTransaction(transactionId) {
+async function deleteStagedTransaction(transactionId) {
     try {
         const response = await fetch(`${API_URL}/staged-transactions/${transactionId}`, {
             method: 'DELETE',
-            headers: {
-                'Accept': 'application/json'
-            }
+            ...auth.addAuthHeader()
         });
 
         if (!response.ok) {
@@ -182,13 +183,13 @@ export async function deleteStagedTransaction(transactionId) {
     }
 }
 
-export async function bulkDeleteStagedTransactions(transactionIds) {
+async function bulkDeleteStagedTransactions(transactionIds) {
     try {
         const response = await fetch(`${API_URL}/staged-transactions/bulk-delete`, {
             method: 'DELETE',
             headers: {
                 'Content-Type': 'application/json',
-                'Accept': 'application/json'
+                ...auth.addAuthHeader().headers
             },
             body: JSON.stringify({ staged_ids: transactionIds })
         });
@@ -215,7 +216,7 @@ export async function bulkDeleteStagedTransactions(transactionIds) {
     }
 }
 
-export function toggleTransactionSelection(transactionId, selected) {
+function toggleTransactionSelection(transactionId, selected) {
     if (selected) {
         selectedTransactions.add(transactionId);
     } else {
@@ -224,11 +225,11 @@ export function toggleTransactionSelection(transactionId, selected) {
     updateSelectionButtons();
 }
 
-export function getSelectedTransactions() {
+function getSelectedTransactions() {
     return Array.from(selectedTransactions);
 }
 
-export function updateSelectionButtons() {
+function updateSelectionButtons() {
     const selectedCount = getSelectedTransactions().length;
     const processBtn = document.querySelector('[data-action="process-selected"]');
     const deleteBtn = document.querySelector('[data-action="delete-selected"]');
@@ -253,4 +254,18 @@ function formatStatus(status) {
 // Initialize tooltips when the module is loaded
 window.addEventListener('app-ready', () => {
     loadStagedTransactions().catch(console.error);
-}); 
+});
+
+// Export all functions at the end of the file
+export {
+    allStagedTransactions,
+    loadStagedTransactions,
+    updateTransactionsList,
+    processStagedTransaction,
+    bulkProcessTransactions,
+    deleteStagedTransaction,
+    bulkDeleteStagedTransactions,
+    toggleTransactionSelection,
+    getSelectedTransactions,
+    updateSelectionButtons
+}; 

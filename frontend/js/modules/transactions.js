@@ -1,28 +1,12 @@
 import { API_URL, formatCurrency, parseDecimalNumber } from './config.js';
 import { allAccounts, loadAccounts } from './accounts.js';
 import { showConfirmDialog, showSuccessMessage, showErrorMessage } from './modal.js';
+import { auth } from './auth.js';
+import { loadCategories } from './categories.js';
 
 // State
 let allTransactions = [];
 let isInitialized = false;
-
-// Exports
-export {
-    loadTransactions,
-    createTransaction,
-    deleteTransaction,
-    viewTransaction,
-    addJournalEntryRow,
-    removeJournalEntry,
-    updateTotals,
-    updateTransactionsTable,
-    showTransactionForm,
-    hideTransactionForm,
-    handleTransactionSubmit,
-    handleDeleteTransaction,
-    applyFilters,
-    validateAccountUsage
-};
 
 // Add sorting state and cached transactions
 let currentSort = {
@@ -31,14 +15,24 @@ let currentSort = {
 };
 let cachedTransactions = [];
 
+// Functions
 async function loadTransactions() {
     try {
+        // Check authentication first
+        if (!auth.requireAuth()) {
+            return [];
+        }
+
         // Load accounts first for the dropdowns
         await loadAccounts();
         
-        // Load transactions
-        const response = await fetch(`${API_URL}/transactions/`);
+        // Load transactions with auth header
+        const response = await fetch(`${API_URL}/transactions/`, auth.addAuthHeader());
         if (!response.ok) {
+            if (response.status === 401) {
+                auth.logout(); // Redirect to login if unauthorized
+                return [];
+            }
             throw new Error('Failed to load transactions');
         }
         const data = await response.json();
@@ -49,7 +43,7 @@ async function loadTransactions() {
         // Update UI only if table exists
         const table = document.getElementById('transactionsTable');
         if (table) {
-            updateTransactionsTable();
+            updateTransactionsTable(allTransactions);
         }
         
         // Populate account filter dropdown only if it exists
@@ -72,12 +66,16 @@ async function loadTransactions() {
         return data;
     } catch (error) {
         console.error('Error loading transactions:', error);
+        if (error.message.includes('401')) {
+            auth.logout(); // Redirect to login if unauthorized
+            return [];
+        }
         showErrorMessage('Error loading transactions: ' + error.message);
         return [];
     }
 }
 
-function updateTransactionsTable() {
+function updateTransactionsTable(transactions = allTransactions) {
     const table = document.getElementById('transactionsTable');
     if (!table) {
         console.error('Transaction table element not found');
@@ -90,24 +88,32 @@ function updateTransactionsTable() {
         return;
     }
 
-    // Clear existing content
-    tbody.innerHTML = '';
+    if (!transactions || transactions.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="6" class="text-center text-muted py-4">
+                    No transactions found
+                </td>
+            </tr>
+        `;
+        return;
+    }
 
     // Sort transactions by date (newest first)
-    const sortedTransactions = [...allTransactions].sort((a, b) => 
+    const sortedTransactions = [...transactions].sort((a, b) => 
         new Date(b.transaction_date) - new Date(a.transaction_date)
     );
 
     // Add new content
-    const tableContent = sortedTransactions.map(transaction => {
+    tbody.innerHTML = sortedTransactions.map(transaction => {
         const debitEntries = transaction.journal_entries.filter(entry => entry.debit_amount > 0);
         const creditEntries = transaction.journal_entries.filter(entry => entry.credit_amount > 0);
         const amount = debitEntries.reduce((sum, entry) => sum + parseFloat(entry.debit_amount), 0);
 
-    return `
+        return `
             <tr>
                 <td>${formatDate(transaction.transaction_date)}</td>
-                        <td>${transaction.description}</td>
+                <td>${transaction.description}</td>
                 <td>${formatAccountsList(debitEntries)}</td>
                 <td>${formatAccountsList(creditEntries)}</td>
                 <td class="text-end numeric">${formatCurrency(amount)}</td>
@@ -118,12 +124,10 @@ function updateTransactionsTable() {
                     <button class="btn btn-sm btn-outline-danger" data-action="delete" data-id="${transaction.id}">
                         <i class="bi bi-trash"></i> Delete
                     </button>
-                        </td>
-                    </tr>
+                </td>
+            </tr>
         `;
     }).join('');
-
-    tbody.innerHTML = tableContent;
 }
 
 function formatDate(dateString) {
@@ -461,9 +465,7 @@ async function applyFilters() {
         if (startDate) params.append('start_date', startDate);
         if (endDate) params.append('end_date', endDate);
         if (accountId) {
-            // Make sure we're sending the account_id as a string
             params.append('account_id', accountId.toString());
-            // Specify that we want to match either credit or debit account
             params.append('account_filter_type', 'any');
         }
 
@@ -474,8 +476,12 @@ async function applyFilters() {
 
         console.log('Fetching filtered transactions from:', url);
         
-        const response = await fetch(url);
+        const response = await fetch(url, auth.addAuthHeader());
         if (!response.ok) {
+            if (response.status === 401) {
+                auth.logout(); // Redirect to login if unauthorized
+                return;
+            }
             const errorData = await response.json();
             throw new Error(errorData.detail || 'Failed to load filtered transactions');
         }
@@ -483,54 +489,71 @@ async function applyFilters() {
         const data = await response.json();
         console.log('Received filtered transactions:', data);
 
-        // Clear existing transactions and update with filtered data
+        // Update state
         allTransactions = [...data];
         
-        // If no transactions found after filtering, show a message but don't clear the table
+        // Update the table with filtered results
+        updateTransactionsTable(allTransactions);
+        
+        // Show appropriate message
         if (allTransactions.length === 0) {
             showErrorMessage('No transactions found for the selected filters');
+        } else {
+            showSuccessMessage('Filters applied successfully');
         }
-        
-        // Update the table with filtered results
-        updateTransactionsTable();
-        
-        // Show success message
-        showSuccessMessage('Filters applied successfully');
     } catch (error) {
         console.error('Error applying filters:', error);
-        showErrorMessage('Error applying filters: ' + error.message);
+        if (error.message.includes('401')) {
+            auth.logout(); // Redirect to login if unauthorized
+        } else {
+            showErrorMessage('Error applying filters: ' + error.message);
+        }
     }
 }
 
 async function createTransaction(transactionData) {
-    const response = await fetch(`${API_URL}/transactions/`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(transactionData)
-    });
+    try {
+        const response = await fetch(`${API_URL}/transactions/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                ...auth.addAuthHeader().headers
+            },
+            body: JSON.stringify(transactionData)
+        });
 
-    if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.detail || 'Error creating transaction');
+        if (!response.ok) {
+            if (response.status === 401) {
+                auth.logout();
+                return null;
+            }
+            const errorData = await response.json();
+            throw new Error(errorData.detail || 'Failed to create transaction');
+        }
+
+        const newTransaction = await response.json();
+        showSuccessMessage('Transaction created successfully');
+        await loadTransactions();
+        return newTransaction;
+    } catch (error) {
+        console.error('Error creating transaction:', error);
+        if (error.message.includes('401')) {
+            auth.logout();
+        }
+        throw error;
     }
-
-    return response.json();
 }
 
 async function deleteTransaction(id) {
     try {
         const response = await fetch(`${API_URL}/transactions/${id}`, {
             method: 'DELETE',
-            headers: {
-                'Accept': 'application/json'
-            }
+            ...auth.addAuthHeader()
         });
-        
+
         if (!response.ok) {
-            // For 404, just return false as the transaction is already gone
-            if (response.status === 404) {
+            if (response.status === 401) {
+                auth.logout();
                 return false;
             }
             const errorData = await response.json();
@@ -539,8 +562,11 @@ async function deleteTransaction(id) {
 
         return true;
     } catch (error) {
-        console.error('Error in deleteTransaction:', error);
-        throw error;  // Re-throw to be handled by caller
+        console.error('Error deleting transaction:', error);
+        if (error.message.includes('401')) {
+            auth.logout();
+        }
+        throw error;
     }
 }
 
@@ -558,10 +584,19 @@ async function viewTransaction(id) {
             existingModal.dispose();
         }
 
-        const response = await fetch(`${API_URL}/transactions/${id}`);
+        const response = await fetch(`${API_URL}/transactions/${id}`, {
+            method: 'GET',
+            ...auth.addAuthHeader()
+        });
+        
         if (!response.ok) {
-            throw new Error('Failed to load transaction details');
+            if (response.status === 401) {
+                auth.logout();
+                return;
+            }
+            throw new Error('Failed to fetch transaction details');
         }
+        
         const transaction = await response.json();
         
         // Update the modal content
@@ -617,7 +652,11 @@ async function viewTransaction(id) {
 
         modal.show();
     } catch (error) {
-        showErrorMessage('Error viewing transaction: ' + error.message);
+        console.error('Error viewing transaction:', error);
+        if (error.message.includes('401')) {
+            auth.logout();
+        }
+        throw error;
     }
 }
 
@@ -667,3 +706,22 @@ function validateAccountUsage(changedSelect) {
     currentDebit.addEventListener('input', handleInput);
     currentCredit.addEventListener('input', handleInput);
 }
+
+// Export all functions at the end of the file
+export {
+    loadTransactions,
+    updateTransactionsTable,
+    showTransactionForm,
+    hideTransactionForm,
+    addJournalEntryRow,
+    removeJournalEntry,
+    updateTotals,
+    handleTransactionSubmit,
+    handleDeleteTransaction,
+    applyFilters,
+    createTransaction,
+    deleteTransaction,
+    viewTransaction,
+    validateAccountUsage,
+    allTransactions
+};

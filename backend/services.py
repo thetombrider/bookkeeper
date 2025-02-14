@@ -10,7 +10,7 @@ It handles all database operations and business rules for:
 - Financial Reports
 """
 
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 from typing import List, Optional, Dict, Tuple, Any
 from sqlalchemy.orm import Session, joinedload, subqueryload, contains_eager
@@ -24,9 +24,10 @@ class BookkeepingService:
     Handles database operations and enforces business rules for double-entry bookkeeping.
     """
     
-    def __init__(self, db: Session):
-        """Initialize service with database session."""
+    def __init__(self, db: Session, user_id: Optional[str] = None):
+        """Initialize service with database session and optional user ID."""
         self.db = db
+        self.user_id = user_id
 
     # Account Categories
     def list_account_categories(self) -> List[models.AccountCategory]:
@@ -34,9 +35,12 @@ class BookkeepingService:
         List all account categories ordered by name.
         
         Returns:
-            List[AccountCategory]: List of all account categories in the system
+            List[AccountCategory]: List of all account categories for the current user
         """
-        return self.db.query(models.AccountCategory).order_by(models.AccountCategory.name).all()
+        query = self.db.query(models.AccountCategory).order_by(models.AccountCategory.name)
+        if self.user_id:
+            query = query.filter(models.AccountCategory.user_id == self.user_id)
+        return query.all()
 
     def create_account_category(self, category_data: models.AccountCategoryCreate) -> models.AccountCategory:
         """
@@ -51,18 +55,24 @@ class BookkeepingService:
         Raises:
             SQLAlchemyError: If there's a database error
         """
-        # Convert Pydantic model to dict and create SQLAlchemy model
-        category_dict = category_data.model_dump()
-        db_category = models.AccountCategory(**category_dict)
-        
-        try:
-            self.db.add(db_category)
-            self.db.commit()
-            self.db.refresh(db_category)
-            return db_category
-        except Exception as e:
-            self.db.rollback()
-            raise ValueError(f"Error creating category: {str(e)}")
+        if not self.user_id:
+            raise ValueError("User ID is required to create an account category")
+            
+        db_category = models.AccountCategory(
+            **category_data.model_dump(),
+            user_id=self.user_id
+        )
+        self.db.add(db_category)
+        self.db.commit()
+        self.db.refresh(db_category)
+        return db_category
+
+    def get_account_category(self, category_id: str) -> Optional[models.AccountCategory]:
+        """Get a specific account category by ID."""
+        query = self.db.query(models.AccountCategory).filter(models.AccountCategory.id == category_id)
+        if self.user_id:
+            query = query.filter(models.AccountCategory.user_id == self.user_id)
+        return query.first()
 
     def update_account_category(self, category_id: str, category_data: models.AccountCategoryCreate) -> Optional[models.AccountCategory]:
         """
@@ -75,7 +85,7 @@ class BookkeepingService:
         Returns:
             Optional[AccountCategory]: Updated category or None if not found
         """
-        db_category = self.db.query(models.AccountCategory).filter(models.AccountCategory.id == category_id).first()
+        db_category = self.get_account_category(category_id)
         if not db_category:
             return None
             
@@ -100,9 +110,9 @@ class BookkeepingService:
             ValueError: If category has associated accounts, including details about the accounts
             HTTPException: If category is not found
         """
-        db_category = self.db.query(models.AccountCategory).filter(models.AccountCategory.id == category_id).first()
+        db_category = self.get_account_category(category_id)
         if not db_category:
-            raise ValueError(f"Account category with id {category_id} not found")
+            return False
             
         # Check if category has any accounts and get their details
         if db_category.accounts:
@@ -133,6 +143,9 @@ class BookkeepingService:
             joinedload(models.Account.category)
         )
         
+        if self.user_id:
+            query = query.filter(models.Account.user_id == self.user_id)
+            
         if category_id:
             query = query.filter(models.Account.category_id == category_id)
         if account_type:
@@ -150,7 +163,10 @@ class BookkeepingService:
         Returns:
             Optional[Account]: The account if found, None otherwise
         """
-        return self.db.query(models.Account).filter(models.Account.id == account_id).first()
+        query = self.db.query(models.Account).filter(models.Account.id == account_id)
+        if self.user_id:
+            query = query.filter(models.Account.user_id == self.user_id)
+        return query.first()
 
     def _generate_account_code(self, account_type: models.AccountType) -> str:
         """
@@ -208,9 +224,12 @@ class BookkeepingService:
         Raises:
             ValueError: If the specified category doesn't exist
         """
+        if not self.user_id:
+            raise ValueError("User ID is required to create an account")
+            
         # Verify category exists if provided
         if account_data.category_id:
-            category = self.db.query(models.AccountCategory).get(account_data.category_id)
+            category = self.get_account_category(account_data.category_id)
             if not category:
                 raise ValueError(f"Account category with id {account_data.category_id} not found")
 
@@ -218,7 +237,10 @@ class BookkeepingService:
         account_dict = account_data.model_dump()
         account_dict['code'] = self._generate_account_code(account_data.type)
 
-        db_account = models.Account(**account_dict)
+        db_account = models.Account(
+            **account_dict,
+            user_id=self.user_id
+        )
         self.db.add(db_account)
         self.db.commit()
         self.db.refresh(db_account)
@@ -238,13 +260,13 @@ class BookkeepingService:
         Raises:
             ValueError: If the specified category doesn't exist or if trying to change account type
         """
-        db_account = self.db.query(models.Account).filter(models.Account.id == account_id).first()
+        db_account = self.get_account(account_id)
         if not db_account:
             return None
             
         # Verify new category exists if provided
         if account_data.category_id:
-            category = self.db.query(models.AccountCategory).get(account_data.category_id)
+            category = self.get_account_category(account_data.category_id)
             if not category:
                 raise ValueError(f"Account category with id {account_data.category_id} not found")
         
@@ -274,7 +296,7 @@ class BookkeepingService:
         Raises:
             ValueError: If account has associated journal entries
         """
-        db_account = self.db.query(models.Account).filter(models.Account.id == account_id).first()
+        db_account = self.get_account(account_id)
         if not db_account:
             return False
             
@@ -381,6 +403,9 @@ class BookkeepingService:
 
     def create_transaction(self, transaction_data: models.TransactionCreate) -> models.Transaction:
         """Create a new transaction with its journal entries."""
+        if not self.user_id:
+            raise ValueError("User ID is required to create a transaction")
+            
         try:
             # Start a nested transaction for atomicity
             with self.db.begin_nested():
@@ -410,7 +435,7 @@ class BookkeepingService:
                         continue
 
                     # Validate account exists
-                    account = self.db.query(models.Account).get(entry.account_id)
+                    account = self.get_account(entry.account_id)
                     if not account:
                         raise ValueError(f"Account {entry.account_id} not found")
 
@@ -451,7 +476,8 @@ class BookkeepingService:
                 transaction = models.Transaction(
                     reference_number=self._generate_transaction_reference(),
                     transaction_date=transaction_data.transaction_date,
-                    description=transaction_data.description
+                    description=transaction_data.description,
+                    user_id=self.user_id
                 )
                 self.db.add(transaction)
                 self.db.flush()  # Get the transaction ID
@@ -486,7 +512,7 @@ class BookkeepingService:
         Raises:
             ValueError: If accounts don't exist or debits don't equal credits
         """
-        db_transaction = self.db.query(models.Transaction).filter(models.Transaction.id == transaction_id).first()
+        db_transaction = self.get_transaction(transaction_id)
         if not db_transaction:
             return None
             
@@ -504,7 +530,7 @@ class BookkeepingService:
         
         for entry in transaction_data.entries:
             # Verify account exists
-            account = self.db.query(models.Account).get(entry.account_id)
+            account = self.get_account(entry.account_id)
             if not account:
                 self.db.rollback()
                 raise ValueError(f"Account with id {entry.account_id} not found")
@@ -629,6 +655,9 @@ class BookkeepingService:
                 .contains_eager(models.JournalEntry.account)
             )
         
+        if self.user_id:
+            query = query.filter(models.Transaction.user_id == self.user_id)
+            
         if start_date:
             query = query.filter(models.Transaction.transaction_date >= start_date)
         if end_date:
@@ -697,7 +726,7 @@ class BookkeepingService:
             return None
             
         # Verify account exists
-        account = self.db.query(models.Account).get(entry_data.account_id)
+        account = self.get_account(entry_data.account_id)
         if not account:
             raise ValueError(f"Account with id {entry_data.account_id} not found")
             
@@ -743,11 +772,11 @@ class BookkeepingService:
         Generate a balance sheet report.
         """
         # Get all accounts grouped by type
-        assets = self.db.query(models.Account).filter(models.Account.type == models.AccountType.ASSET).all()
-        liabilities = self.db.query(models.Account).filter(models.Account.type == models.AccountType.LIABILITY).all()
-        equity = self.db.query(models.Account).filter(models.Account.type == models.AccountType.EQUITY).all()
-        income_accounts = self.db.query(models.Account).filter(models.Account.type == models.AccountType.INCOME).all()
-        expense_accounts = self.db.query(models.Account).filter(models.Account.type == models.AccountType.EXPENSE).all()
+        assets = self.list_accounts(account_type=models.AccountType.ASSET)
+        liabilities = self.list_accounts(account_type=models.AccountType.LIABILITY)
+        equity = self.list_accounts(account_type=models.AccountType.EQUITY)
+        income_accounts = self.list_accounts(account_type=models.AccountType.INCOME)
+        expense_accounts = self.list_accounts(account_type=models.AccountType.EXPENSE)
         
         # Calculate balances
         asset_details = []

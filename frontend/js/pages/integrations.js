@@ -4,7 +4,6 @@ import {
     updateIntegration, 
     deleteIntegration, 
     syncIntegration,
-    updateConfigFields,
     editIntegration,
     loadConnectedBanks,
     showLoading,
@@ -12,10 +11,14 @@ import {
 } from '../modules/integrations.js';
 import { showSuccessMessage, showErrorMessage, showConfirmDialog } from '../modules/modal.js';
 import { API_URL } from '../modules/config.js';
+import { auth } from '../modules/auth.js';
 
 // Initialize the page
 async function initializePage() {
     try {
+        // Check authentication
+        auth.requireAuth();
+        
         // Check for bank connection redirect
         const urlParams = new URLSearchParams(window.location.search);
         const sourceId = urlParams.get('source_id');
@@ -84,7 +87,6 @@ function setupFormHandlers() {
                 editForm.reset();
                 editForm.dataset.editId = '';
                 document.getElementById('integrationType').disabled = false;
-                document.getElementById('configFields').innerHTML = '';
                 form.querySelector('.card-title').textContent = 'Add Integration';
                 editForm.querySelector('button[type="submit"]').textContent = 'Create Integration';
                 
@@ -99,7 +101,7 @@ function setupFormHandlers() {
     const typeSelect = document.getElementById('integrationType');
     if (typeSelect) {
         typeSelect.onchange = () => {
-            updateConfigFields(typeSelect.value);
+            // Handle type change if needed
         };
     }
 
@@ -213,9 +215,6 @@ async function handleEdit(id) {
             document.getElementById('integrationName').value = integration.name;
             document.getElementById('integrationType').value = integration.type;
             document.getElementById('integrationActive').checked = integration.is_active;
-            
-            // Update config fields
-            updateConfigFields(integration.type);
             
             // Populate config values
             const config = JSON.parse(integration.config || '{}');

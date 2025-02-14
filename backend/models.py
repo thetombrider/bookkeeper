@@ -37,17 +37,20 @@ class AccountCategory(Base):
     __tablename__ = "account_categories"
 
     id = Column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    user_id = Column(String, ForeignKey("users.id"), nullable=False)
     name = Column(String, nullable=False)
     description = Column(String)
     created_at = Column(DateTime, nullable=False, default=func.now())
     updated_at = Column(DateTime, nullable=False, default=func.now(), onupdate=func.now())
 
     accounts = relationship("Account", back_populates="category")
+    user = relationship("User", back_populates="account_categories")
 
 class Account(Base):
     __tablename__ = "accounts"
 
     id = Column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    user_id = Column(String, ForeignKey("users.id"), nullable=False)
     category_id = Column(String(36), ForeignKey("account_categories.id"))
     name = Column(String, nullable=False)
     type = Column(SQLEnum(AccountType), nullable=False)
@@ -59,25 +62,29 @@ class Account(Base):
 
     category = relationship("AccountCategory", back_populates="accounts")
     journal_entries = relationship("JournalEntry", back_populates="account")
+    user = relationship("User", back_populates="accounts")
 
 class ImportSource(Base):
     __tablename__ = "import_sources"
 
     id = Column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    user_id = Column(String, ForeignKey("users.id"), nullable=False)
     name = Column(String, nullable=False)
     type = Column(SQLEnum(ImportSourceType), nullable=False)
-    config = Column(String)  # JSON string for configuration
-    is_active = Column(Boolean, default=True)
+    config = Column(String)  # JSON configuration
+    is_active = Column(Boolean, nullable=False, default=True)
     created_at = Column(DateTime, nullable=False, default=func.now())
     updated_at = Column(DateTime, nullable=False, default=func.now(), onupdate=func.now())
 
     staged_transactions = relationship("StagedTransaction", back_populates="source")
+    user = relationship("User", back_populates="import_sources")
     bank_connections = relationship("BankConnection", back_populates="import_source", cascade="all, delete-orphan")
 
 class Transaction(Base):
     __tablename__ = "transactions"
 
     id = Column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    user_id = Column(String, ForeignKey("users.id"), nullable=False)
     transaction_date = Column(Date, nullable=False, default=func.current_date())
     description = Column(String, nullable=False)
     status = Column(SQLEnum(TransactionStatus), nullable=False, default=TransactionStatus.COMPLETED)
@@ -88,6 +95,7 @@ class Transaction(Base):
 
     journal_entries = relationship("JournalEntry", back_populates="transaction", cascade="all, delete-orphan")
     staged_transaction = relationship("StagedTransaction", back_populates="final_transaction", foreign_keys=[staged_transaction_id])
+    user = relationship("User", back_populates="transactions")
 
 class JournalEntry(Base):
     __tablename__ = "journal_entries"
@@ -213,6 +221,7 @@ class StagedTransaction(Base):
     __tablename__ = "staged_transactions"
 
     id = Column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    user_id = Column(String, ForeignKey("users.id"), nullable=False)
     source_id = Column(String(36), ForeignKey("import_sources.id"), nullable=False)
     external_id = Column(String)  # ID from external system if available
     transaction_date = Column(Date, nullable=False)
@@ -229,6 +238,7 @@ class StagedTransaction(Base):
     source = relationship("ImportSource", back_populates="staged_transactions")
     account = relationship("Account")
     final_transaction = relationship("Transaction", back_populates="staged_transaction", foreign_keys=[Transaction.staged_transaction_id])
+    user = relationship("User", back_populates="staged_transactions")
 
 class StagedTransactionBase(BaseModel):
     source_id: str
@@ -340,4 +350,22 @@ class BulkDeleteRequest(BaseModel):
     staged_ids: List[str]
 
     class Config:
-        from_attributes = True 
+        from_attributes = True
+
+# Update User model to include relationships
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid4()))
+    email = Column(String, unique=True, index=True, nullable=False)
+    name = Column(String, nullable=True)
+    surname = Column(String, nullable=True)
+    hashed_password = Column(String, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    # Add relationships
+    account_categories = relationship("AccountCategory", back_populates="user")
+    accounts = relationship("Account", back_populates="user")
+    transactions = relationship("Transaction", back_populates="user")
+    import_sources = relationship("ImportSource", back_populates="user")
+    staged_transactions = relationship("StagedTransaction", back_populates="user") 

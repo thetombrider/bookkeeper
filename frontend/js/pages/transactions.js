@@ -13,18 +13,24 @@ import {
     validateAccountUsage
 } from '../modules/transactions.js';
 import { loadAccounts } from '../modules/accounts.js';
+import { loadCategories } from '../modules/categories.js';
 import { showErrorMessage, showSuccessMessage, showConfirmDialog } from '../modules/modal.js';
 import { API_URL } from '../modules/config.js';
+import { auth } from '../modules/auth.js';
 
 let allTransactions = [];
 
 // Initialize the page
 async function initializePage() {
     try {
+        // Check authentication
+        auth.requireAuth();
+        
         // Load initial data
         await Promise.all([
             loadAccounts(),
-            loadTransactions()
+            loadTransactions(),
+            loadCategories()
         ]);
 
         // Set today's date as default
@@ -69,7 +75,7 @@ async function applyFilters() {
 
         console.log('Fetching filtered transactions from:', url);
         
-        const response = await fetch(url);
+        const response = await fetch(url, auth.addAuthHeader());
         if (!response.ok) {
             const errorData = await response.json();
             throw new Error(errorData.detail || 'Failed to load filtered transactions');
@@ -97,39 +103,18 @@ async function applyFilters() {
             }
         } else {
             // Update the table with filtered results
-            const tbody = document.querySelector('#transactionsTable tbody');
-            if (tbody) {
-                tbody.innerHTML = allTransactions.map(transaction => {
-                    const debitEntries = transaction.journal_entries.filter(entry => entry.debit_amount > 0);
-                    const creditEntries = transaction.journal_entries.filter(entry => entry.credit_amount > 0);
-                    const amount = debitEntries.reduce((sum, entry) => sum + parseFloat(entry.debit_amount), 0);
-
-                    return `
-                        <tr>
-                            <td>${new Date(transaction.transaction_date).toLocaleDateString('it-IT')}</td>
-                            <td>${transaction.description}</td>
-                            <td>${debitEntries.length ? debitEntries[0].account.name + (debitEntries.length > 1 ? ` (+${debitEntries.length - 1} more)` : '') : '-'}</td>
-                            <td>${creditEntries.length ? creditEntries[0].account.name + (creditEntries.length > 1 ? ` (+${creditEntries.length - 1} more)` : '') : '-'}</td>
-                            <td class="text-end numeric">${new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(amount)}</td>
-                            <td class="text-end">
-                                <button class="btn btn-sm btn-outline-primary me-2" data-action="view" data-id="${transaction.id}">
-                                    <i class="bi bi-eye"></i> View
-                                </button>
-                                <button class="btn btn-sm btn-outline-danger" data-action="delete" data-id="${transaction.id}">
-                                    <i class="bi bi-trash"></i> Delete
-                                </button>
-                            </td>
-                        </tr>
-                    `;
-                }).join('');
-            }
+            updateTransactionsTable(allTransactions);
         }
         
         // Show success message
         showSuccessMessage('Filters applied successfully');
     } catch (error) {
         console.error('Error applying filters:', error);
-        showErrorMessage('Error applying filters: ' + error.message);
+        if (error.message.includes('401')) {
+            auth.logout(); // Redirect to login if unauthorized
+        } else {
+            showErrorMessage('Error applying filters: ' + error.message);
+        }
     }
 }
 

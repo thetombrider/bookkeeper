@@ -10,26 +10,25 @@ import {
 } from '../modules/staged-transactions.js';
 import { loadAccounts } from '../modules/accounts.js';
 import { showSuccessMessage, showErrorMessage, showConfirmDialog } from '../modules/modal.js';
+import { auth } from '../modules/auth.js';
 
 document.addEventListener('DOMContentLoaded', async () => {
-    try {
-        // Load initial data
-        await Promise.all([
-            loadStagedTransactions(),
-            loadAccounts()
-        ]);
+    // Check authentication
+    auth.requireAuth();
+    
+    // Load initial data
+    await Promise.all([
+        loadStagedTransactions(),
+        loadAccounts()
+    ]);
 
-        // Set up event handlers
-        setupEventHandlers();
-        
-        // Initialize tooltips
-        const tooltips = document.querySelectorAll('[data-bs-toggle="tooltip"]');
-        tooltips.forEach(el => new bootstrap.Tooltip(el));
+    // Set up event handlers
+    setupEventHandlers();
+    
+    // Initialize tooltips
+    const tooltips = document.querySelectorAll('[data-bs-toggle="tooltip"]');
+    tooltips.forEach(el => new bootstrap.Tooltip(el));
 
-    } catch (error) {
-        console.error('Error initializing staged transactions:', error);
-        showErrorMessage('Error loading staged transactions. Please refresh the page.');
-    }
 });
 
 function setupEventHandlers() {

@@ -1,7 +1,11 @@
 import { loadCategories, createCategory, updateCategory, handleEditCategory, handleDeleteCategory } from '../modules/categories.js';
-import { showSuccessMessage, showErrorMessage } from '../modules/modal.js';
+import { showSuccessMessage, showErrorMessage, showConfirmDialog } from '../modules/modal.js';
+import { auth } from '../modules/auth.js';
 
 document.addEventListener('DOMContentLoaded', async () => {
+    // Check authentication
+    auth.requireAuth();
+    
     try {
         // Load initial categories
         await loadCategories();

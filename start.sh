@@ -8,7 +8,7 @@ NC='\033[0m' # No Color
 echo "Starting backend server..."
 
 # Start backend server
-python -m uvicorn backend.api:app --reload --host 0.0.0.0 --port 8000 &
+uvicorn backend.api:app --reload --host 0.0.0.0 --port 8000 &
 BACKEND_PID=$!
 
 # Wait for backend to be ready
@@ -31,7 +31,7 @@ echo -e "${GREEN}Backend is running!${NC}"
 # Start frontend server
 echo "Starting frontend server..."
 cd frontend
-python -m http.server 3000 &
+python3 -m http.server 3000 &
 FRONTEND_PID=$!
 
 # Handle script interruption

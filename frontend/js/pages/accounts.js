@@ -1,8 +1,12 @@
 import { loadAccounts, createAccount, updateAccount, deleteAccount } from '../modules/accounts.js';
 import { updateCategoryDropdown } from '../modules/categories.js';
 import { showConfirmDialog, showSuccessMessage, showErrorMessage } from '../modules/modal.js';
+import { auth } from '../modules/auth.js';
 
 document.addEventListener('DOMContentLoaded', async () => {
+    // Check authentication
+    auth.requireAuth();
+    
     try {
         // Load initial accounts
         await loadAccounts();
