@@ -19,6 +19,8 @@ from uuid import uuid4
 from nordigen import NordigenClient
 import time
 from collections import defaultdict
+from fastapi.responses import JSONResponse
+import asyncio
 
 from . import models
 from .models import (
@@ -208,12 +210,26 @@ def list_connected_banks(client):
 app = FastAPI(title="Bookkeeper")
 
 # Configure CORS middleware to allow frontend access
+frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
+allowed_origins = [
+    frontend_url,
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://localhost:5500",
+    "http://127.0.0.1:5500",
+    "http://localhost:8000",
+    "http://127.0.0.1:8000"
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],  # Frontend development server
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allow_headers=["Content-Type", "Authorization", "accept"],
+    allow_headers=["*"],
+    expose_headers=["*"],
+    max_age=3600,  # Cache preflight requests for 1 hour
+    allow_origin_regex=None  # Disable regex for security
 )
 
 # Add health endpoint
@@ -643,10 +659,11 @@ async def delete_journal_entry(
 @app.post("/import-sources/", response_model=ImportSourceResponse, tags=["imports"])
 async def create_import_source(
     source_data: ImportSourceCreate,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """Create a new import source configuration."""
-    service = BookkeepingService(db)
+    service = BookkeepingService(db, current_user.id)
     try:
         return service.create_import_source(source_data)
     except ValueError as e:
@@ -655,11 +672,12 @@ async def create_import_source(
 @app.get("/import-sources/", response_model=List[ImportSourceResponse], tags=["imports"])
 async def list_import_sources(
     active_only: bool = True,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """List all import sources."""
-    service = BookkeepingService(db)
-    return service.list_import_sources(active_only=active_only)
+    service = BookkeepingService(db, current_user.id)
+    return service.list_import_sources(active_only)
 
 @app.get("/import-sources/{source_id}", response_model=ImportSourceResponse, tags=["imports"])
 async def get_import_source(
@@ -1240,14 +1258,15 @@ async def list_gocardless_accounts(
         if not source.is_active:
             raise HTTPException(status_code=400, detail="Import source is not active")
         
-        # Parse the config
+        # Parse the config with better error handling
         try:
             config = json.loads(source.config) if source.config else {}
+            if not isinstance(config, dict):
+                raise ValueError("Invalid configuration format")
         except json.JSONDecodeError:
-            raise HTTPException(status_code=400, detail="Invalid source configuration")
-
-        if not isinstance(config, dict):
-            raise HTTPException(status_code=400, detail="Invalid configuration format")
+            raise HTTPException(status_code=400, detail="Invalid source configuration format")
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
             
         if not config.get('secretId') or not config.get('secretKey'):
             raise HTTPException(
@@ -1255,110 +1274,117 @@ async def list_gocardless_accounts(
                 detail="Missing GoCardless credentials in configuration"
             )
 
-        # Initialize GoCardless client
-        client = NordigenClient(
-            secret_id=config['secretId'],
-            secret_key=config['secretKey']
-        )
+        # Initialize GoCardless client with retry logic
+        max_retries = 3
+        last_error = None
+        
+        for attempt in range(max_retries):
+            try:
+                client = NordigenClient(
+                    secret_id=config['secretId'],
+                    secret_key=config['secretKey']
+                )
+                token_data = client.generate_token()
+                client.token = token_data['access']
+                last_error = None
+                break
+            except Exception as e:
+                last_error = str(e)
+                if attempt < max_retries - 1:
+                    await asyncio.sleep(2 ** attempt)  # Exponential backoff
+                    continue
+                    
+        if last_error:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Failed to initialize GoCardless client: {last_error}"
+            )
 
-        # Get token
+        # Get active bank connections with error handling
         try:
-            token_data = client.generate_token()
-            client.token = token_data['access']
-        except Exception as e:
-            raise HTTPException(status_code=400, detail=f"Failed to generate GoCardless token: {str(e)}")
-
-        # If use_cached is True and not forcing refresh, try to get accounts from database first
-        if use_cached and not refresh:
-            # Get active bank connections
             bank_connections = db.query(models.BankConnection).filter(
                 models.BankConnection.import_source_id == source_id,
                 models.BankConnection.status == 'active'
             ).all()
+        except Exception as e:
+            print(f"Database error fetching bank connections: {str(e)}")
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to fetch bank connections"
+            )
 
-            if bank_connections:
-                # Get accounts for all active connections
-                accounts = []
-                for conn in bank_connections:
-                    bank_accounts = db.query(models.BankAccount).filter(
-                        models.BankAccount.connection_id == conn.id,
-                        models.BankAccount.status == 'active'
-                    ).all()
-                    
-                    # Add connection info to each account
-                    for account in bank_accounts:
-                        account_data = models.BankAccountResponse.model_validate(account).model_dump()
-                        account_data['connection'] = models.BankConnectionResponse.model_validate(conn).model_dump()
-                        accounts.append(account_data)
-
-                if accounts:
-                    return accounts
-
-        # If no cached accounts or refresh requested, fetch from API
         accounts = []
-        bank_connections = db.query(models.BankConnection).filter(
-            models.BankConnection.import_source_id == source_id,
-            models.BankConnection.status == 'active'
-        ).all()
+        connection_errors = []
 
         for connection in bank_connections:
             try:
-                # Get requisition details
-                requisition = client.requisition.get_requisition_by_id(
-                    requisition_id=connection.requisition_id
-                )
+                # Get requisition details with retry
+                requisition = None
+                for attempt in range(max_retries):
+                    try:
+                        requisition = client.requisition.get_requisition_by_id(
+                            requisition_id=connection.requisition_id
+                        )
+                        break
+                    except Exception as e:
+                        if attempt == max_retries - 1:
+                            raise e
+                        await asyncio.sleep(2 ** attempt)
+
+                if not requisition:
+                    connection_errors.append(f"Failed to fetch requisition for {connection.bank_name}")
+                    continue
 
                 # Update connection status if needed
-                if requisition['status'] == 'LN':
-                    connection.status = 'active'
+                if requisition['status'] != 'LN':
+                    connection.status = 'disconnected'
                     db.commit()
+                    connection_errors.append(f"Connection to {connection.bank_name} needs to be reauthorized")
+                    continue
 
-                # Get accounts for this requisition
+                # Process accounts for this connection
                 for account_id in requisition.get('accounts', []):
                     try:
-                        # Get account details from API
-                        account_details = client.account.get_details(account_id)
+                        account_api = client.account_api(account_id)
+                        details = account_api.get_details()
                         
-                        # Check if account already exists in database
-                        bank_account = db.query(models.BankAccount).filter(
-                            models.BankAccount.connection_id == connection.id,
-                            models.BankAccount.account_id == account_id
-                        ).first()
-
-                        if not bank_account:
-                            # Create new account record
-                            bank_account = models.BankAccount(
-                                connection_id=connection.id,
-                                account_id=account_id,
-                                name=account_details.get('account', {}).get('name', 'Unknown Account'),
-                                iban=account_details.get('account', {}).get('iban'),
-                                currency=account_details.get('account', {}).get('currency'),
-                                status='active'
-                            )
-                            db.add(bank_account)
-                            db.commit()
-                            db.refresh(bank_account)
-
                         # Add account with connection info
-                        account_data = models.BankAccountResponse.model_validate(bank_account).model_dump()
-                        account_data['connection'] = models.BankConnectionResponse.model_validate(connection).model_dump()
+                        account_data = {
+                            'id': account_id,
+                            'name': details.get('account', {}).get('name', 'Unknown Account'),
+                            'iban': details.get('account', {}).get('iban'),
+                            'currency': details.get('account', {}).get('currency'),
+                            'connection': {
+                                'id': connection.id,
+                                'bank_name': connection.bank_name,
+                                'status': connection.status
+                            }
+                        }
                         accounts.append(account_data)
-
                     except Exception as e:
-                        print(f"Error fetching account details for {account_id}: {str(e)}")
+                        print(f"Error processing account {account_id}: {str(e)}")
                         continue
 
             except Exception as e:
                 print(f"Error processing connection {connection.id}: {str(e)}")
+                connection_errors.append(f"Error with {connection.bank_name}: {str(e)}")
                 continue
 
-        return accounts
+        # Return results with any errors
+        response = {"accounts": accounts}
+        if connection_errors:
+            response["errors"] = connection_errors
+
+        return response
 
     except HTTPException:
         raise
     except Exception as e:
-        print(f"Error listing connected banks: {str(e)}")
-        raise HTTPException(status_code=500, detail="Failed to list connected banks")
+        print(f"Unexpected error in list_gocardless_accounts: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to list connected banks: {str(e)}"
+        )
 
 @app.delete("/import-sources/{source_id}/gocardless-requisition/{requisition_id}", tags=["imports"])
 async def delete_gocardless_requisition(
@@ -1388,4 +1414,23 @@ async def delete_gocardless_requisition(
             
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=500, detail=str(e)) 
+        raise HTTPException(status_code=500, detail=str(e))
+
+# Add error handlers
+@app.exception_handler(Exception)
+async def global_exception_handler(request, exc):
+    if isinstance(exc, ConnectionError):
+        # Handle client disconnection gracefully
+        return None
+    # Log the error
+    print(f"Unexpected error: {str(exc)}")
+    # Return error response
+    return JSONResponse(
+        status_code=500,
+        content={"detail": str(exc)}
+    )
+
+@app.exception_handler(ConnectionError)
+async def connection_error_handler(request, exc):
+    # Handle client disconnection gracefully
+    return None 

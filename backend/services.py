@@ -978,7 +978,7 @@ class BookkeepingService:
     def create_import_source(self, source_data: models.ImportSourceCreate) -> models.ImportSource:
         """Create a new import source configuration."""
         source_dict = source_data.model_dump()
-        db_source = models.ImportSource(**source_dict)
+        db_source = models.ImportSource(**source_dict, user_id=self.user_id)
         
         try:
             self.db.add(db_source)
