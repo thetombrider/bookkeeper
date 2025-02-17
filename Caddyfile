@@ -1,9 +1,9 @@
 :3000 {
     encode gzip
 
-    # Global basic authentication
+    # Global basic authentication with bcrypt hash
     basic_auth /* {
-        {$BASIC_AUTH_USERNAME} {$BASIC_AUTH_PASSWORD}
+        $(htpasswd -nbB ${BASIC_AUTH_USERNAME} ${BASIC_AUTH_PASSWORD})
     }
 
     # Handle API requests
