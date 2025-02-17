@@ -1,19 +1,19 @@
 version: '3.8'
 
 services:
-  bookkeeper-dev:  # More descriptive service name
-    container_name: bookkeeper-local  # Explicit container name
+  bookkeeper-dev:
+    container_name: bookkeeper-local
     build:
       context: .
-      dockerfile: Dockerfile  # Using the main Dockerfile
+      dockerfile: Dockerfile
       args:
         BASIC_AUTH_USERNAME: ${BASIC_AUTH_USERNAME}
         BASIC_AUTH_PASSWORD: ${BASIC_AUTH_PASSWORD}
     ports:
-      - "3000:3000"  # Frontend
-      - "8000:8000"  # Backend API
+      - "3000:3000"
+      - "8000:8000"
     volumes:
-      - ./data:/data  # Mount the data directory for persistence
+      - ./data:/data
     environment:
       BASIC_AUTH_USERNAME: ${BASIC_AUTH_USERNAME}
       BASIC_AUTH_PASSWORD: ${BASIC_AUTH_PASSWORD}
@@ -25,7 +25,6 @@ services:
       timeout: 10s
       retries: 3
       start_period: 10s
-    # Add some labels to identify this as the local dev container
     labels:
       - "com.bookkeeper.environment=development"
       - "com.bookkeeper.type=local-dev"

@@ -46,7 +46,7 @@ RUN echo $'\
     encode gzip\n\
     \n\
     # Global basic authentication\n\
-    basicauth /* {\n\
+    basic_auth /* {\n\
         {$BASIC_AUTH_USERNAME} {$BASIC_AUTH_PASSWORD}\n\
     }\n\
     \n\
