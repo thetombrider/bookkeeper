@@ -10,7 +10,7 @@ RUN apt-get update && apt-get install -y \
     apt-transport-https \
     curl \
     dos2unix \
-    apache2-utils \  # Per htpasswd
+    apache2-utils \
     && curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg \
     && curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | tee /etc/apt/sources.list.d/caddy-stable.list \
     && apt-get update && apt-get install -y caddy \
