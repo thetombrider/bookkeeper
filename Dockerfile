@@ -10,6 +10,7 @@ RUN apt-get update && apt-get install -y \
     apt-transport-https \
     curl \
     dos2unix \
+    apache2-utils \  # Per htpasswd
     && curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg \
     && curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | tee /etc/apt/sources.list.d/caddy-stable.list \
     && apt-get update && apt-get install -y caddy \
@@ -40,13 +41,18 @@ ENV DATABASE_URL="sqlite:////data/bookkeeper.db"
 ENV PORT=8000
 ENV PYTHONPATH=/app
 
+# Generate hashed password
+RUN PASSWORD_HASH=$(htpasswd -nbB $BASIC_AUTH_USERNAME $BASIC_AUTH_PASSWORD | cut -d ":" -f 2)
+
 # Configure Caddy
 RUN echo $'\
 :3000 {\n\
     encode gzip\n\
     \n\
     # Global basic authentication\n\
-    basic_auth /* '"$BASIC_AUTH_USERNAME"' '"$BASIC_AUTH_PASSWORD"'\n\
+    basic_auth /* {\n\
+        '"$BASIC_AUTH_USERNAME"' '"$PASSWORD_HASH"'\n\
+    }\n\
     \n\
     # Handle API requests\n\
     handle /api/* {\n\
