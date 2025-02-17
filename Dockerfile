@@ -41,26 +41,27 @@ ENV BASIC_AUTH_USERNAME=$BASIC_AUTH_USERNAME
 ENV BASIC_AUTH_PASSWORD=$BASIC_AUTH_PASSWORD
 
 # Configure Caddy
-RUN echo ':3000 {
-    encode gzip
-
-    # Global basic authentication
-    basicauth /* {
-        {$BASIC_AUTH_USERNAME} {$BASIC_AUTH_PASSWORD}
-    }
-
-    # Handle API requests
-    handle /api/* {
-        uri strip_prefix /api
-        reverse_proxy localhost:8000
-    }
-
-    # Handle static files
-    handle {
-        root * /app/frontend
-        try_files {path} {path}.html /index.html
-        file_server
-    }
+RUN echo $'\
+:3000 {\n\
+    encode gzip\n\
+    \n\
+    # Global basic authentication\n\
+    basicauth /* {\n\
+        {$BASIC_AUTH_USERNAME} {$BASIC_AUTH_PASSWORD}\n\
+    }\n\
+    \n\
+    # Handle API requests\n\
+    handle /api/* {\n\
+        uri strip_prefix /api\n\
+        reverse_proxy localhost:8000\n\
+    }\n\
+    \n\
+    # Handle static files\n\
+    handle {\n\
+        root * /app/frontend\n\
+        try_files {path} {path}.html /index.html\n\
+        file_server\n\
+    }\n\
 }' > /etc/caddy/Caddyfile
 
 # Create startup script
