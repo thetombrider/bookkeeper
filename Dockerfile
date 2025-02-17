@@ -30,15 +30,14 @@ COPY frontend/ /app/frontend/
 COPY data/bookkeeper.db /data/bookkeeper.db
 
 # Set environment
-# Set environment variables from .env file
-COPY .env /app/.env
-RUN export $(cat /app/.env | xargs)
+ARG BASIC_AUTH_USERNAME
+ARG BASIC_AUTH_PASSWORD
 
-ENV DATABASE_URL=$DATABASE_URL
-ENV PORT=$PORT
-ENV PYTHONPATH=$PYTHONPATH
-ENV BASIC_AUTH_USERNAME=$BASIC_AUTH_USERNAME
-ENV BASIC_AUTH_PASSWORD=$BASIC_AUTH_PASSWORD
+ENV BASIC_AUTH_USERNAME=${BASIC_AUTH_USERNAME:-admin}
+ENV BASIC_AUTH_PASSWORD=${BASIC_AUTH_PASSWORD:-changeme}
+ENV DATABASE_URL="sqlite:////data/bookkeeper.db"
+ENV PORT=8000
+ENV PYTHONPATH=/app
 
 # Configure Caddy
 RUN echo $'\

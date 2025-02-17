@@ -6,12 +6,17 @@ services:
     build:
       context: .
       dockerfile: Dockerfile  # Using the main Dockerfile
+      args:
+        - BASIC_AUTH_USERNAME=${BASIC_AUTH_USERNAME}
+        - BASIC_AUTH_PASSWORD=${BASIC_AUTH_PASSWORD}
     ports:
       - "3000:3000"  # Frontend
       - "8000:8000"  # Backend API
     volumes:
       - ./data:/data  # Mount the data directory for persistence
     environment:
+      - BASIC_AUTH_USERNAME=${BASIC_AUTH_USERNAME}
+      - BASIC_AUTH_PASSWORD=${BASIC_AUTH_PASSWORD}
       - DATABASE_URL=sqlite:////data/bookkeeper.db
       - PYTHONPATH=/app
     healthcheck:
