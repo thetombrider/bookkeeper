@@ -65,15 +65,16 @@ RUN echo $'\
 }' > /etc/caddy/Caddyfile
 
 # Create startup script
-RUN echo '#!/bin/sh
-cd /app
-
-# Start the backend in the background
-cd /app/backend
-python -m uvicorn api:app --host 0.0.0.0 --port 8000 &
-
-# Start Caddy in the foreground
-exec caddy run --config /etc/caddy/Caddyfile --adapter caddyfile
+RUN echo $'\
+#!/bin/sh\n\
+cd /app\n\
+\n\
+# Start the backend in the background\n\
+cd /app/backend\n\
+python -m uvicorn api:app --host 0.0.0.0 --port 8000 &\n\
+\n\
+# Start Caddy in the foreground\n\
+exec caddy run --config /etc/caddy/Caddyfile --adapter caddyfile\n\
 ' > /app/start.sh && chmod +x /app/start.sh
 
 # Expose port
