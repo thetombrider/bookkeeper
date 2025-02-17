@@ -1,0 +1,21 @@
+:3000 {
+    encode gzip
+
+    # Global basic authentication
+    basic_auth /* {
+        {$BASIC_AUTH_USERNAME} {$BASIC_AUTH_PASSWORD}
+    }
+
+    # Handle API requests
+    handle /api/* {
+        uri strip_prefix /api
+        reverse_proxy localhost:8000
+    }
+
+    # Handle static files
+    handle {
+        root * /app/frontend
+        try_files {path} {path}.html /index.html
+        file_server
+    }
+}

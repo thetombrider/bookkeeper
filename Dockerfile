@@ -44,29 +44,8 @@ ENV PYTHONPATH=/app
 # Generate hashed password
 RUN PASSWORD_HASH=$(htpasswd -nbB $BASIC_AUTH_USERNAME $BASIC_AUTH_PASSWORD | cut -d ":" -f 2)
 
-# Configure Caddy
-RUN echo $'\
-:3000 {\n\
-    encode gzip\n\
-    \n\
-    # Global basic authentication\n\
-    basic_auth /* {\n\
-        '"$BASIC_AUTH_USERNAME"' '"$PASSWORD_HASH"'\n\
-    }\n\
-    \n\
-    # Handle API requests\n\
-    handle /api/* {\n\
-        uri strip_prefix /api\n\
-        reverse_proxy localhost:8000\n\
-    }\n\
-    \n\
-    # Handle static files\n\
-    handle {\n\
-        root * /app/frontend\n\
-        try_files {path} {path}.html /index.html\n\
-        file_server\n\
-    }\n\
-}' > /etc/caddy/Caddyfile
+# Copy Caddyfile
+COPY Caddyfile /etc/caddy/Caddyfile
 
 # Create startup script
 RUN printf '#!/bin/sh\n\
@@ -76,7 +55,7 @@ cd /app\n\
 cd /app/backend\n\
 python -m uvicorn api:app --host 0.0.0.0 --port 8000 &\n\
 \n\
-# Start Caddy in the foreground\n\
+# Start Caddy in the foreground with environment variables\n\
 exec caddy run --config /etc/caddy/Caddyfile --adapter caddyfile\n\
 ' > /app/start.sh && \
     chmod +x /app/start.sh && \
