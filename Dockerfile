@@ -9,6 +9,7 @@ RUN apt-get update && apt-get install -y \
     debian-archive-keyring \
     apt-transport-https \
     curl \
+    dos2unix \
     && curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg \
     && curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | tee /etc/apt/sources.list.d/caddy-stable.list \
     && apt-get update && apt-get install -y caddy \
@@ -64,8 +65,7 @@ RUN echo $'\
 }' > /etc/caddy/Caddyfile
 
 # Create startup script
-RUN echo $'\
-#!/bin/sh\n\
+RUN printf '#!/bin/sh\n\
 cd /app\n\
 \n\
 # Start the backend in the background\n\
@@ -74,7 +74,9 @@ python -m uvicorn api:app --host 0.0.0.0 --port 8000 &\n\
 \n\
 # Start Caddy in the foreground\n\
 exec caddy run --config /etc/caddy/Caddyfile --adapter caddyfile\n\
-' > /app/start.sh && chmod +x /app/start.sh
+' > /app/start.sh && \
+    chmod +x /app/start.sh && \
+    dos2unix /app/start.sh
 
 # Expose port
 EXPOSE 3000
