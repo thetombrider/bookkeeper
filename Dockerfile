@@ -47,7 +47,7 @@ RUN echo $'\
     \n\
     # Global basic authentication\n\
     basic_auth /* {\n\
-        '$BASIC_AUTH_USERNAME' '$BASIC_AUTH_PASSWORD'\n\
+        '"$BASIC_AUTH_USERNAME"' '"$BASIC_AUTH_PASSWORD"'\n\
     }\n\
     \n\
     # Handle API requests\n\
