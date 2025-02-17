@@ -30,42 +30,53 @@ COPY frontend/ /app/frontend/
 COPY data/bookkeeper.db /data/bookkeeper.db
 
 # Set environment
-ENV DATABASE_URL="sqlite:////data/bookkeeper.db"
-ENV PORT=8000
-ENV PYTHONPATH=/app
+# Set environment variables from .env file
+COPY .env /app/.env
+RUN export $(cat /app/.env | xargs)
+
+ENV DATABASE_URL=$DATABASE_URL
+ENV PORT=$PORT
+ENV PYTHONPATH=$PYTHONPATH
+ENV BASIC_AUTH_USERNAME=$BASIC_AUTH_USERNAME
+ENV BASIC_AUTH_PASSWORD=$BASIC_AUTH_PASSWORD
 
 # Configure Caddy
-RUN echo ':3000 {\n\
-    encode gzip\n\
-    \n\
-    # Handle API requests\n\
-    handle /api/* {\n\
-        uri strip_prefix /api\n\
-        reverse_proxy localhost:8000\n\
-    }\n\
-    \n\
-    # Handle static files\n\
-    handle {\n\
-        root * /app/frontend\n\
-        try_files {path} {path}.html /index.html\n\
-        file_server\n\
-    }\n\
+RUN echo ':3000 {
+    encode gzip
+
+    # Global basic authentication
+    basicauth /* {
+        {$BASIC_AUTH_USERNAME} {$BASIC_AUTH_PASSWORD}
+    }
+
+    # Handle API requests
+    handle /api/* {
+        uri strip_prefix /api
+        reverse_proxy localhost:8000
+    }
+
+    # Handle static files
+    handle {
+        root * /app/frontend
+        try_files {path} {path}.html /index.html
+        file_server
+    }
 }' > /etc/caddy/Caddyfile
 
 # Create startup script
-RUN echo '#!/bin/sh\n\
-cd /app\n\
-\n\
-# Start the backend in the background\n\
-cd /app/backend\n\
-python -m uvicorn api:app --host 0.0.0.0 --port 8000 &\n\
-\n\
-# Start Caddy in the foreground\n\
-exec caddy run --config /etc/caddy/Caddyfile --adapter caddyfile\n\
+RUN echo '#!/bin/sh
+cd /app
+
+# Start the backend in the background
+cd /app/backend
+python -m uvicorn api:app --host 0.0.0.0 --port 8000 &
+
+# Start Caddy in the foreground
+exec caddy run --config /etc/caddy/Caddyfile --adapter caddyfile
 ' > /app/start.sh && chmod +x /app/start.sh
 
 # Expose port
 EXPOSE 3000
 
 # Run the application
-CMD ["/app/start.sh"] 
+CMD ["/app/start.sh"]
